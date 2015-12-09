@@ -1,0 +1,379 @@
+2013-1-29
+nvmecompliance_release=2.0.0 New tests, bug fixes, last release
+    1) dnvme: No changes in the driver.
+    2) tnvme: Added Async Event Request cmd in the framework.
+    3) tnvme: Added new tests group GrpAdminAsyncCmd
+    4) tnvme: Bugfix: Singletons:regDefs.h file bad value in
+       definition file was never caught. 
+    5) This is the last official release from Intel onto github.
+       The procedure from this point forward will be to solely
+       interact with github for...
+       a) code reviews
+       b) push and pull updates to the source.
+       c) Questions are still, and always, invited to the alias:
+          compliance@nvmexpress.org
+       The interactation model is changing to conform to the intent
+       of github to invite community involvment.
+
+2012-11-05
+nvmecompliance_release=1.14.1 New tests, bug fixes
+    1) tnvme: testPlan.ods was updated with Intels future plan of work.
+
+2012-11-05
+nvmecompliance_release=1.14.0 New tests, bug fixes
+    1) dnvme: bugfix: An array was overflowing the stack when a device
+       would report a large number of suppported MSI-X IRQ's. A core
+       dump of the kernel was being observed.
+    2) tnvme: Various new tests were added, please reference the git log
+
+2012-10-23
+nvmecompliance_release=1.13.0 New tests, bug fixes
+    1) dnvme: Nothing significant, changed debug logging to error logging
+    2) tnvme: Added various new tests, see git log for details.
+    3) tnvme: Enhanced Get/Set Features framework cmd to have more
+       getters and settters for access to the encapsulated data.
+    4) tnvme: Enhanced IO::SendAndReadCmd() to accept an array of 
+       anticipated error codes to achieve a successful outcome.
+    5) tnvme: Come upon our 1st test to utilize cmd line params "-p -y",
+       since Set Features changes the state of the DUT permenantly.
+       For details of these cmd line options see: 
+       https://github.com/nvmecompliance/tnvme/wiki/Command-Line-Options.
+    6) tnvme: More segregation of "reserved bit" tests. A compile time
+       flag can be used to skip rsvd bit tests, see cmd line option "-b".
+       https://github.com/nvmecompliance/tnvme/wiki/Command-Line-Options.
+       Specifically the setting of PRP2 rsvd bits when PRP2 is not used
+       needed to be included under the "reserved bit" tests.
+    7) tnvme: bugfix: GrpPciRegisters and Singletons directories. A pull
+       request was generated to address known outstanding issues with
+       GrpPciRegister test(s) and Singletons::Registers and in the 
+       definitions for NVMe registers. These areas could not be tested 
+       within QEMU due to limitations of QEMU vs. the accepted method
+       of embedding a new device within QEMU. Thus, they were coded and
+       left as is, until such time someone in the industry could run
+       them on real hdw. As of now, 3 vendors have tested these 
+       fixes and these issues should now be concluded.
+
+2012-9-27
+nvmecompliance_release=1.12.0 New tests, bug fix
+    1) dnvme: No changes to driver
+    2) tnvme: Added new group of tests called GrpAdminSetFeatCombo
+    3) tnvme: Added new group of tests called GrpAdminSetFeatCmd
+    4) tnvme-bugfix: A typo in NVMe spec rev B incorrectly stated
+       (or implied) that the NUMD value in Get Log Page cmd is
+       1-baed, when in fact it should be 0-based. Tests and QEMU
+       have been updated to reflect the correction now in Rev C
+
+2012-9-4
+nvmecompliance_release=1.11.0 New tests, enhancements
+    1) dnvme: No changes to driver
+    2) tnvme: Enhancment, added a global constant, compile time, to align
+       buffers allocated in user space in a single place. See
+       PRP_BUFFER_ALIGNMENT.
+    3) tnvme: Enhancement, added a common macro to calc timeout values
+       on a single cmd, multi-cmd and adhere to a TO floor for QEMU. See
+       DEFAULT_CMD_WAIT_ms.
+    4) tnvme: Enhancement: Added cmd line switch -b. See
+       "https://github.com/nvmecompliance/tnvme/wiki/Command-Line-Options"
+    5) tnvme: Enhancement, added admin security cmds to the framework.
+    6) tnvme: Enhancement, RO bit test for PCI register CMD changed due to
+       an incorrect NVMe spec statement, based upon errata #29.
+
+2012-8-14
+nvmecompliance_release=1.10.0 New tests, enhancements, and bugfixs
+    1) dnvme: (bugfix) Driver unloaded could have caused a kernel core dump
+       since unmapping that which the driver didn't own would be
+       the cause.
+    2) dnvme: (bugfix) Checking for incorrect return values cause bad logic.
+    3) dnvme: (bugfix) A Linux kernel API call was passing incorrect data
+       to a function.
+    4) tnvme: (bugfix) Test GrpQueues::ManyCmdSubmit_r10b timed out for
+       some real world hdw because it didnt' factor in nomincal times
+       for present day hdw. Rather it was a guess based upon QEMU results.
+       The TO now should suffice all hdw.
+    5) tnvme: enhancement: The --golden option is now more verbose and
+       versatile.
+    6) tnvme: bugfix GrpAdminGetLogPgCmd::NUMDIsAdhered_r10b fixed a 
+       buffer offset miscalculation.
+    7) tnvme: spec misinterpretation due to a spec typo. The NVMe spec 1.0c
+       is also at fault, rather refer to NVMe errata 29. It states that
+       parital reaping from a CQ causes IRQ's to keep being issued to a
+       host using MSI-X IRQs.
+
+2012-8-6
+nvmecompliance_release=1.9.0 dnvme bugfix only
+    1) dnvme:
+      a) Fix MSI-X PBA table access:
+         MSI-X PBA table's pending bits should never is written by
+         the driver. A device driver is prohibited from writing this
+         bits however driver can read these bits to determine the
+         current pending IRQ's
+      b) Fix in dnvme_probe:
+         The driver probing for BAR's incorrectly used parameters in
+         pci_resource_start. Changed to use correct parameters
+      c) Fix in read_generic:
+         Corrected variable types from int to u32.
+    2) Known Issues:
+      a) none.
+
+2012-7-25
+nvmecompliance_release=1.8.0 New tests, bug fixes.
+    1) dnvme: no changes this release.
+    2) Bugfix: Framework reg definition CAP_RES3 was incorrect.
+    3) tnvme: --golden cmd line option now reports all violation rather
+       than just the 1st one.
+    4) tnvme: Framework method CE::Validate() would never have reported
+       an illegal 'M' bit begin set.
+    5) Bugfix-tnvme: The framework incorrectly reported the number
+       of tests being skipping when using the --skiptest cmd line option.
+    6) tnvme: Added new tests, see git log for details.
+    7) Known Issues:
+      a) BUG-dnvme: Currently there is no work around for this. It 
+        affects only MSI-X interrupt handling, thus any test that
+        uses MSI-X might core-dump when running against real hdw.
+        QEMU does not correctly disallow the violation that is 
+        occuring which is why it has slipped by for so long. The
+        violation is that dnvme directly writes to the MSIXCAP.TBIR
+        and MSIXCAP.PBIR tables. Linux will not allow this to
+        mask IRQ's, thus some other method needs to be sought.
+
+
+2012-7-3
+nvmecompliance_release=1.7.0 New tests, bug fixes.
+    1) dnvme-bugfix: The mapping of optionali BAR registers was doing the 
+       exact opposite of what was needed; end result BARS where being mapped
+       correctly.
+    2) Described more test cases, added Intel's intention of coding.
+    3) Add new cmd line option --fwimage, see 
+       ttps://github.com/nvmecompliance/tnvme/wiki/Command-Line-Options
+    4) Added new framework cmds, FirmwareActivate and FirmwareImageDownload.
+    5) tnvme-bugfix: cmd line option --ignored would never have dumped the
+       state-of-the DUT, rather an execption within exception would have occur.
+    6) Add new cmd line option --postfail, see 
+       ttps://github.com/nvmecompliance/tnvme/wiki/Command-Line-Options
+    7) Added a few new tests, see git log for details.
+    8) Add new cmd line option --restore, see 
+       ttps://github.com/nvmecompliance/tnvme/wiki/Command-Line-Options
+
+2012-6-19
+nvmecompliance_release=1.6.0 New tests, bug fixes, high confidence.
+    1) The compliance suite continues to execute over 28 different NVMe formats
+       within QEMU using manage/regression.sh.
+    2) dnvme-bugfix: The tracking of CE's in dnvme was chopping off the high
+       order bits of the status field. This caused resources to not become
+       released back to the kernel until such time the user space issued
+       a DISABLE_COMPLETELY state change.
+    3) tnvme, dnvme were enchanced to allow tnvme to inject custom strings
+       into the dnvme logging output to mark points in time for debugging. This
+       would essentially sync reference points between the use space logging
+       and what was occuring in the kernel.
+    4) tnvme-bugfix under QEMU only: Increased the timeout period to avoid
+       tnvme reporting "Unable to see CE's in CQ" while running under QEMU.
+       The simulated world is much slower than real world hdw.
+    5) tnvme enhancement: --golden option now allows specifing a mask of which
+       bits should be compared.
+    6) tnvme enchancment: Added --preserve cmd line option and
+       RunnableCoreTest() for all test cases to indicate whether or not they
+       are runnable based upon the desire to keep the state of the DUT
+       unchanged. See https://github.com/nvmecompliance/tnvme/wiki/Runnable-Test
+    7) tnvme-bugfix: Missing rsvd bits in struct IdPowerStateDesc.
+    8) tnvme-bugfix: The creation of IOSQ's was incorrectly setting the desired
+       priority of the Q as it was being created.
+    9) tnvme-bugfix: The displayed timeout value when a test case gives up
+       waiting as a result of calling any Reap() method reported an incorrect
+       duration.
+    10) tnvme-bugfix: The framework incorrectly assumed a specific number of
+        interrupts must have ocurred during a reaping of CE's from CQ's that
+        were assoc with many IOSQ's.
+    11) Added numerous new tests, see git log for details.
+
+2012-5-21:
+nvmecompliance_release=1.5.0 New tests, bug fixes, high confidence.
+    1) Using QEMU and the file manage/regression.sh the entire compliance
+       suite is run against 28 different formatted namespaces. Estimates are
+       that this script alone tests 96%-tnvme, 98%-dnvme, and 95%-qemu of the 
+       logic developed under this project. Depending upon the power of the host
+       environment this regression sequence consumes between 17 and 24 hours.
+    2) dnvme: increased the max size of meta data buffer support from 16KB to
+       2GB.
+    3) dnvme-bugfix: BAR0 was assumed to point to the MSIX tables at all times,
+       but now all BARs are generally mapped and later interpreted correctly.
+    4) tnvme: Introduced a new --golden cmd line option, read 
+       https://github.com/nvmecompliance/tnvme/wiki/Command-Line-Options
+    5) tnvme: Remove unnecessary tracking of a cmd's classification; either
+       admin or NVM, wasn't needed since the Q to which a cmd is placed 
+       determines the cmd set.
+    6) tnvme-bugfix: To test case
+       GrpNVMWriteReadCombo::PRPOffsetSinglePgSingleBlk_r10b
+    7) tnvme: All existing test cases now support meta data coverage as both a 
+       separate buffer and as interleaved with the LBA data.
+    8) tnvme-bugfix: MetaData::GetMetaBufferSize() use to return 16 bits, now
+       uses uint32_t for full coverage of buffer sizes.
+    9) tnvme-bugfix: Test case GrpBasicInit/VerifyDataPat and
+       GrpBasicInit/WriteDataPat
+    10) tnvme-bugfix: The CC.MPS bitmask was inadvertently affecting the CC.CSS
+        field when it was being set.
+    11) tnvme-bugfix: Tests
+         a) GrpNVMWriteReadCombo/prpOffsetDualPgMultiBlk_r10b.cpp
+         b) GrpNVMWriteReadCombo/prpOffsetMultiPgMultiBlk_r10b.cpp
+        Didn't allocate enough meta data for meta type namespaces.
+    12) Introduced more resolution to identify namespace types. The test cases
+        needed to consider all permutations of meta data and E2E namespaces.
+        The additional considerations were whether or not the meta data is
+        supplied as a separate buffer or whether it is interleaved within the
+        PRP payload.
+    13) Rearchitected GrpInformative and gInformative so that they are not 
+        linked. In fact there is no special group GrpInformative any longer.
+        GrpInformative's logic has been relocated to the singleton gInformative.
+    14) tnvme-bugfix: The managemennt of meta data buffers caused an infinite
+        loop to be entered when those buffers were finally deallocated.
+
+2012-4-30:
+nvmecompliance_release=1.4.0 New tests, bug fixes, quality.
+    1) We are consistently looping this framework hundreds of times with 0
+       failures, crashes, anomalies, etc. Nothing adverse being observed.
+    2) The previously known issue with DMA corruption has disappeared. It was
+       always suspect it was due to flaky hardware, but no concrete conclusions
+       can be made. For full details read file dnvme/Doc/readme.dma.corrupt
+    3) Enhanced dnmve to allow a dangerous backdoor to manipulate cmds.
+       Reference header file describing NVME_IOCTL_TOXIC_64B_DWORD.
+    4) dnvme bugfix; IRQ's were not cleaned upon driver loading.
+    5) dnvme bugfix; DMA data direction understanding between user space and
+       kernel space was misaligned.
+    6) Added new tests, view tnmve's git log for details.
+    7) Added dependancy to dnvme to use common XML library. Please read
+       https://github.com/nvmecompliance/tnvme/wiki/Compiling
+    8) tnvme bugfix; framework didn't properly report the number of queues
+       supported by a device.
+    9) Made an explicit distinction bewteen dumping data and logging data.
+       see git log commit 8e41603fbf52d4f8f294f22e8b7740e67085fcc8.
+    10) Added the ability to format a device vai tnvme's cmd line. See
+        description of --format option on
+        https://github.com/nvmecompliance/tnvme/wiki/Command-Line-Options
+    11) Known Issues:
+        a) none.
+
+2012-4-10:
+nvmecompliance_release=1.3.0 New tests, bug fixes in dnvme.
+    1) Added numerous new tests, see git log for details.
+    2) Small bugfixes in tnvme, not a complete list:
+        a) Flushing stdout wasn't being performed, thus wasn't in log output
+        b) GrpBasicInit::verifyDataPat_r10b wasn't causing error when err occur
+        c) No longer assuming all DUT's can support discontig IOQ's memory.
+           Attempts to use discontig memory but will default to contig when
+           necessary.
+        d) Cmds/Metadata::SetMetaDataPattern() overwrote memory it didn't own.
+        e) Cmds/Cmd::Dump() was not virtual and thus children weren't able to
+           explicitly change the behavior or the Dump().
+    3) Bugfix: dnvme: load/unload inefficiencies fixed and symmetry of
+       call backs redone. Mapping of IO memory not needed and removed.
+    4) Bugfix: dnvme: direct kernel usage of user space virtual ptrs.
+    5) Bugfix: dnvme: The full use of 64 bit addr space was not enabled.
+    6) Known Issues:
+        a) The DMA corruption issue is half working. It works on systems where
+           the IOMMU is disabled, however the inverse is not working. In the
+           cases where the IOMMU is enabled the buffer's contents are in fact
+           being xferr'd to completeness, however the data is phase shifted
+           within the buffer, always a constant 16 bytes. This fix is a work
+           in progress.
+
+2012-3-21:
+nvmecompliance_release=1.2.2 New tests, bug fixes.
+    1) Added numerous new tests, see git log for details.
+    2) Bugfix: Couldn't create the max sized IOQ's because of the use of an 
+       uint16_t doesn hold the value 65536, i.e. the max possible size. This
+       bug manifested itself within tnvme, dnvme, and QEMU.
+    3) Bugfix: The timeout waiting to "reap inquire" upon a CQ wasn't waiting
+       the correct amount of time per the call's spec'd number of millisec.
+    4) Bugfix: Possible seg fault when a test fails. The old way to notify the
+       framwork of a compliance violation was to throw std::exception(). This
+       could cause a seg fault under the right conditions. See git entry for
+       details. The new method of indicating a failure is to throw a custom
+       class defined within ./tnvme/Exception/FrmwkEx().
+    5) Code cleanup, remove use of <math.h> lib.
+    6) All prior "Known Issues" have been resolved.
+    7) Known Issues:
+        a) GrpInformative's test 1.1.0 "Issue the identify cmd", under real
+           world hdw does do the data transfer, but only part of the page
+           length of data is actually correct. The buffer's are being zero'd
+           before being sent to hardware, after a successful CE arrives in the
+           ACQ, the data being dump to files in directory
+           ./Logs/GrpInformative of the form:
+           GrpInformative.DumpIdentifyData_r10b.Identify.xxxx is currupted. The
+           latter portion of the transfer is corrupted and only some of the
+           time. Anticipation is that the bug resides within dnvme only.
+
+2012-3-8:
+nvmecompliance_release=1.2.1 New tests, bug fixes.
+    1) Bugfix: Read cmds would have issue operating under real world hardware
+       because the DMA direction was not set corrrectly. Under QEMU, this flag
+       was ignored.
+    2) Added numerous new tests, see git log for details.
+    3) Bugfix: Informative::GetFeaturesNumOfIOCQs() and 
+       Informative::GetFeaturesNumOfIOSQs() now correctly return 1 based
+       values as was always stated in the header file doxygen comment.
+    4) All prior "Known Issues" have been resolved.
+    5) Known Issues:
+        a) There may be a memory leak within dnvme's ability to free back to 
+           the OS any/some of contiguous memory. Evidence shows that looping
+           the current state of the tes software runs into the inability to
+           allocated contig memory.
+
+2012-3-2:
+nvmecompliance_release=1.2.0 Test dependencies, reap delays, enhancements 
+    1) Added test dependencies. The test reference number now indicates its
+       prerequisites. See 
+       https://github.com/nvmecompliance/tnvme/wiki/Test-Numbering
+    2) Avoid PRP misuse. Allow the test developer to set PRP requirements, but
+       never allow the setting of unsupported requirements for this will only
+       lead to a kernel crash. Spec. states this has unknown outcomes.
+    3) Aid in seeking bare, meta, e2e namespaces. Many tests will need this
+       support, thus it was made available for all as a utility class.
+    4) Automate retrieving the get log page error data when the M bit is set
+       within a CE.
+    5) Added C++ namespace's to avoid name collisions.
+    6) Addressed the issue where the log data was becoming too large to handle.
+       See file: manage/runtnvme.sh for this support.
+    7) Removed the long delays from reap inquiry as was a known issue in the
+       previous release.
+    8) Known Issues:
+        a) A problem has been reported by the community that test case 0:1.1.0
+           works correctly under Fedora 2.6.31.5-127.fc12.x86_64 if executed
+           within QEMU, however under real hardware the DUT's data never
+           appears in user space. This investigation is ongoing.
+
+2012-2-16:
+nvmecompliance_release=1.1.0 Added interrupt support; MSI, MSI-X, no pin based
+    1) Interrupts supported in tnvme are abstracted from the scheme set within
+       dnvme; test leverage the same user space API no matter the setting used
+       in dnvme.
+    2) Numerous bug fixes; refer to git repo log statements for details.
+    3) Major framework enhancements to aid in test development. Ideas were
+       generated as a result of feedback via nvmecompliance@intel.com and
+       as a result of adding tests cases finding new ways to improve the
+       experience.
+    4) Updated tnvme/Doc/testPlan.ods with details targetting the architecture
+       expected by this framework. The test plan is roughly 40/45% coverage of 
+       the 1.0b NVMe specification. Outside sources are encouraged to work on
+       the test plan marked as "TBD" since those test still need to be 
+       described and coded.
+    5) Known Issues:
+        a) Reap inquiry takes much longer than it should, and thus test cases
+           take longer to complete. This is due to the polling scheme whereby
+           tnvme must keep generating IOCTL calls into dnvme until such time
+           a CE arrives in the CQ. This should be fixed with a select scheme.
+        b) Output files are becoming very large, especially if one --loop the
+           test multiple times. Deriving a future scheme to keep only the
+           last group of test logging, or maybe the last 1MB of data. Solutions
+           are still being discussed.
+        c) There is no method of extracting the log page when a CE arrives and
+           its More (M) bit is set indicating more data is available. This
+           should be handled by default by the framework when more info is
+           available by dumpting the data to an output file.
+
+2012-1-23:
+vmecompliance_release=1.0.1 Enhancements and bugfixes; added read/write cmds
+    1) Planning on supporting interrupts in the future.
+    2) Planning on adding tests in the future.
+
+2011-12-23:
+nvmecompliance_release=1.0.0 First official release of the NVME compliance suite

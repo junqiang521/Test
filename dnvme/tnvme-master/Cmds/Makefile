@@ -1,0 +1,69 @@
+# Copyright (c) 2011, Intel Corporation.
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+#
+LDFLAGS=-lm
+LIBS = -L../ -L/usr/local/lib -lm
+INCLUDES = -I. -I../ -I../../ -I/usr/local/include
+
+SRC =				\
+	cmd.cpp			\
+	prpData.cpp		\
+	metaData.cpp		\
+	adminCmd.cpp		\
+	nvmCmd.cpp		\
+	createIOCQ.cpp		\
+	deleteIOCQ.cpp		\
+	createIOSQ.cpp		\
+	deleteIOSQ.cpp		\
+	identify.cpp		\
+	baseFeatures.cpp	\
+	getFeatures.cpp		\
+	setFeatures.cpp		\
+	write.cpp		\
+	read.cpp		\
+	flush.cpp		\
+	getLogPage.cpp		\
+	formatNVM.cpp		\
+	fwActivate.cpp		\
+	fwImgDnld.cpp		\
+	datasetMgmt.cpp		\
+	baseSecurity.cpp	\
+	securitySend.cpp	\
+	securityRcv.cpp		\
+	asyncEventReq.cpp	 \
+	namespaceAttach.cpp \
+	namespaceManagement.cpp \
+	reservationAcquire.cpp  \
+	reservationRegister.cpp \
+	reservationRelease.cpp  \
+	reservationReport.cpp
+
+.SUFFIXES: .cpp
+
+OBJ = $(SRC:.cpp=.o)
+OUT = libCmds.a
+
+all: $(OUT)
+
+.cpp.o:
+	$(CC) $(INCLUDES) $(CFLAGS) $(DFLAGS)-c $< -o $@ $(LDFLAGS)
+
+$(OUT): $(OBJ)
+	ar rcs $(OUT) $(OBJ)
+
+clean:
+	rm -f $(OBJ) $(OUT) Makefile.bak
+
+clobber: clean
+	rm -f $(OUT)
