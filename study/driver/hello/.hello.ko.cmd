@@ -1,0 +1,1 @@
+cmd_/home/gong/study/driver/hello/hello.ko := ld -r -m elf_x86_64 -T ./scripts/module-common.lds --build-id  -o /home/gong/study/driver/hello/hello.ko /home/gong/study/driver/hello/hello.o /home/gong/study/driver/hello/hello.mod.o

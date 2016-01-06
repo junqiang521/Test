@@ -1,0 +1,1 @@
+cmd_/home/gong/study/driver/wait_queue/mywait.ko := ld -r -m elf_x86_64 -T ./scripts/module-common.lds --build-id  -o /home/gong/study/driver/wait_queue/mywait.ko /home/gong/study/driver/wait_queue/mywait.o /home/gong/study/driver/wait_queue/mywait.mod.o
