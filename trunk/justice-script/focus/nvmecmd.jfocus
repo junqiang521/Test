@@ -1,0 +1,952 @@
+require('../../justice-cmd/command/nvme-cmd.js')
+var os = require('os');
+var log = require('fs');
+var pat = require('../core_lib/c_pattern.jclib')
+var logs =  require('../output/output.js');
+var fmt = require('printf')
+var sleep = require('sleep')
+var shell = require('shelljs')
+var testlogs = require('../core_lib/c_logs.jclib')
+var init = require('../init/init.js')
+var moment = require("moment");
+var sprintf = require("sprintf-js").sprintf
+var ref = require('ref')
+var ref_struct = require('ref-struct')
+
+var char_t = ref.types.char
+var uint8_t = ref.types.uint8
+var uint16_t = ref.types.uint16
+var uint32_t = ref.types.uint32
+var uint64_t = ref.types.uint64
+var path =''
+var pid = process.pid
+var TimeOut_Code = 1
+var Success_Code = 0
+var Error_Code = -1
+var MisCompare_Code = -2
+var HWError_Code = -3
+var DrvError_Code = -4
+
+var loopcount = 1000
+var i 
+var start_lba = 0
+var zone_wr_size = 8
+var file_name='';
+var comm_num = 0
+var ret 
+var w_buff = get_write_buffer()
+var r_buff = get_read_buffer()
+var pat_buf = new Array()
+var buf = new Buffer(64*1024*1024)
+
+var LBA_SIZE = 8
+var Q_NUM=8
+var Q_DETH=1024
+var rseed = Number(Date.now())
+seed(rseed)
+var cur_dir = process.argv[1];
+var urlChunks = cur_dir.split('/');
+
+for( i = 0 ;i < urlChunks.length - 2;i++ )
+{
+    path = path +  urlChunks[i] +'/';
+}
+file_name=path+"info/"
+var n = urlChunks.length
+var testname = urlChunks[n-1]
+var test = testname.split('.')
+var testid = test[0]
+var sysid=os.hostname()
+var time =moment().format("YYYY-MM-DD")+"-"+ moment().format("HH:mm:ss")
+var device_no = 0
+var temp = process.argv[2]
+if(temp!=undefined){    
+    if(!isNaN(temp))
+    {
+        device_no = Number(temp)
+    }    
+}
+init.init('',device_no)
+var SECTOR_SIZE = init.sector_size
+//pat.pat_init()
+w_buff.fill(0x55)
+r_buff.fill(0)
+testlogs.set_log_path( path +"info/"+ time+sysid+ "_"+pid + '.jlog');
+var file=path +"info/"+testid+"_"+time+"_"+sysid+"_"+pid+"jfocus"
+hist_path = path + 'info/'
+//set_history(hist_path)
+select(device_no, 0, 0)
+//========================================================================
+var buffer = new Buffer(4096)
+
+for (var i = 0; i <255; i++)
+{
+    identify_async(0, buffer, 4096,0)    
+}
+door_bell()
+comm_num = 255
+while (comm_num > 0) {
+    ret = retrieve()
+    comm_num -= ret.cnt
+    for(var i = 0; i<ret.cnt;i++)
+    {
+        if(ret.results[i].status){
+            info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+            testlogs.dump_register()
+            return HWError_Code;
+        }   
+    }
+}
+var pr_str =""
+for(var i = 7;i>=0;i--){
+    pr_str = pr_str+fmt('%02x',(buffer[i]))
+}
+var NSZE="Bytes 7:0 \t NSZE(Namespace Size):"+"0x"+pr_str+"\n"
+
+var pr_str =""
+for(var i = 15;i>=8;i--){
+    pr_str = pr_str+fmt('%02x',(buffer[i]))
+}
+var NCAP="Bytes 15:8 \t NCAP(Namespace Capacity):"+"0x"+pr_str+"\n"
+    
+var pr_str =""
+for(var i = 23;i>=16;i--){
+    pr_str = pr_str+fmt('%02x',(buffer[i]))
+}
+var NUSE="Bytes 23:16 \t NUSE(Namespace Utilization):"+"0x"+pr_str+"\n"
+var NSFEAT="Byte 24 \t NSFEAT(Namespace Features):"+"0x"+fmt('%02x',(buffer[24]))+"\n"
+var NLBAF="Byte 25 \t NLBAF(Number of LBA Formats):"+"0x"+fmt('%02x',(buffer[25]))+"\n"
+var FLBAS="Byte 26 \t FLBAS(Formatted LBA Size):"+"0x"+fmt('%02x',(buffer[26]))+"\n"
+var MC="Byte 27 \t MC(Metadata Capabilities):"+"0x"+fmt('%02x',(buffer[27]))+"\n"
+var DPC="Byte 28 \t DPC(End-to-end Data Protection Capabilities):"+"0x"+fmt('%02x',(buffer[28]))+"\n"
+var DPS="Byte 29 \t DPS(End-to-end Data Protection Type Settings):"+"0x"+fmt('%02x',(buffer[29]))+"\n"
+var NMIC="Byte 30 \t NMIC(Namespace Multi-path I/O and Namespace Sharing Capabilities):"+"0x"+fmt('%02x',(buffer[30]))+"\n"
+var RESCAP="Byte 31 \t RESCAP(Reservation Capabilities):"+"0x"+fmt('%02x',(buffer[31]))+"\n"
+var FPI="Byte 32 \t FPI(Format Progress Indicator):"+"0x"+fmt('%02x',(buffer[32]))+"\n"
+var NAWUN="Bytes 35:34 \t NAWUN(Namespace Atomic Write Unit Normal):"+"0x"+fmt('%02x',(buffer[35]))+fmt('%02x',(buffer[34]))+"\n"
+var NAWUPF="Bytes 37:36 \t NAWUPF(Namespace Atomic Write Unit Power Fail):"+"0x"+fmt('%02x',(buffer[37]))+fmt('%02x',(buffer[36]))+"\n"
+var NACWU="Bytes 39:38 \t NACWU(Namespace Atomic Compare & Write Unit):"+"0x"+fmt('%02x',(buffer[39]))+fmt('%02x',(buffer[38]))+"\n"
+var NABSN="Bytes 41:40 \t NABSN(Namespace Atomic Boundary Size Normal):"+"0x"+fmt('%02x',(buffer[41]))+fmt('%02x',(buffer[40]))+"\n"
+var NABO="Bytes 43:42 \t NABO(Namespace Atomic Boundary Offset):"+"0x"+fmt('%02x',(buffer[43]))+fmt('%02x',(buffer[42]))+"\n"
+var NABSPF="Bytes 45:44 \t NABSPF(Namespace Atomic Boundary Size Power Fail):"+"0x"+fmt('%02x',(buffer[45]))+fmt('%02x',(buffer[44]))+"\n"
+var pr_str =""
+for(var i = 63;i>=48;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var NVMCAP="Bytes 63:48 \t NVMCAP(NVM Capacity):"+"0x"+pr_str+"\n"
+var pr_str =""
+for(var i = 119;i>=104;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var NGUID="Bytes 119:104 \t NGUID(Namespace Globally Unique Identifier):"+"0x"+pr_str+"\n"
+var pr_str =""
+for(var i = 127;i>=120;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var EUI64="Bytes 127:120 \t EUI64(IEEE Extended Unique Identifier):"+"0x"+pr_str+"\n"
+var pr_str =""
+for(var i = 131;i>=128;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var LBAF0="Bytes \t131:128  LBAF0(LBA Format 0 Support):"+"0x"+pr_str+"\n"
+var pr_str =""
+for(var i = 135;i>=132;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var LBAF1="Bytes \t135:132  LBAF1(LBA Format 1 Support):"+"0x"+pr_str+"\n"
+var pr_str =""
+for(var i = 139;i>=136;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var LBAF2="Bytes \t139:136  LBAF2(LBA Format 2 Support):"+"0x"+pr_str+"\n"
+var pr_str =""
+for(var i = 143;i>=140;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var LBAF3="Bytes \t143:140  LBAF3(LBA Format 3 Support):"+"0x"+pr_str+"\n"
+var pr_str =""
+for(var i = 147;i>=144;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var LBAF4="Bytes \t147:144  LBAF4(LBA Format 4 Support):"+"0x"+pr_str+"\n"
+var pr_str =""
+for(var i = 151;i>=148;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var LBAF5="Bytes \t151:148  LBAF5(LBA Format 5 Support):"+"0x"+pr_str+"\n"
+var pr_str =""
+for(var i = 155;i>=152;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var LBAF6="Bytes \t155:152  LBAF6(LBA Format 6 Support):"+"0x"+pr_str+"\n"
+var pr_str =""
+for(var i = 159;i>=156;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var LBAF7="Bytes \t159:156  LBAF7(LBA Format 7 Support):"+"0x"+pr_str+"\n"
+var pr_str =""
+for(var i = 163;i>=160;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var LBAF8="Bytes \t163:160  LBAF8(LBA Format 8 Support):"+"0x"+pr_str+"\n"
+var pr_str =""
+for(var i = 167;i>=164;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var LBAF9="Bytes \t167:164  LBAF9(LBA Format 9 Support):"+"0x"+pr_str+"\n"
+var pr_str =""
+for(var i = 171;i>=168;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var LBAF10="Bytes \t171:168  LBAF10(LBA Format 10 Support):"+"0x"+pr_str+"\n"
+var pr_str =""
+for(var i = 175;i>=172;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var LBAF11="Bytes \t175:172  LBAF11(LBA Format 11 Support):"+"0x"+pr_str+"\n"
+var pr_str =""
+for(var i = 179;i>=176;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var LBAF12="Bytes \t179:176  LBAF12(LBA Format 12 Support):"+"0x"+pr_str+"\n"
+var pr_str =""
+for(var i = 183;i>=180;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var LBAF13="Bytes \t183:180  LBAF13(LBA Format 13 Support):"+"0x"+pr_str+"\n"
+var pr_str =""
+for(var i = 187;i>=184;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var LBAF14="Bytes \t187:184  LBAF14(LBA Format 14 Support):"+"0x"+pr_str+"\n"
+var pr_str =""
+for(var i = 191;i>=188;i--){
+    pr_str=pr_str+fmt('%02x',(buffer[i]))
+}
+var LBAF15="Bytes \t191:188  LBAF15(LBA Format 15 Support):"+"0x"+pr_str+"\n"
+var prn_string= "identify 0"+"\n"
+prn_string =prn_string+ NSZE+NCAP+NUSE+NSFEAT+NLBAF+FLBAS+MC+DPC+DPS+NMIC+RESCAP+FPI+NAWUN+NAWUPF+NACWU+NABSN+NABO+NABSPF+NVMCAP+NGUID+EUI64+
+            LBAF0+LBAF1+LBAF2+LBAF3+LBAF4+LBAF5+LBAF6+LBAF7+LBAF8+LBAF9+LBAF10+LBAF11+LBAF12+LBAF13+LBAF14+LBAF15+"\n"
+//info(prn_string)
+log.appendFileSync(file,prn_string)
+
+//========================================================================
+info('====================identify namespace finished!=======================')
+for (var i = 0; i <255; i++)
+{
+    identify_async(1, buffer, 4096,0)    
+}
+door_bell()
+comm_num = 255
+while (comm_num > 0) {
+    ret = retrieve()
+    comm_num -= ret.cnt
+    for(var i = 0; i<ret.cnt;i++)
+    {
+        if(ret.results[i].status){
+            info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+            testlogs.dump_register()
+            return HWError_Code;
+        }   
+    }
+}
+var VID="Bytes 01:00  \tVID(PCI Vendor ID):"+"0x"+fmt('%02x',buffer[1])+fmt('%02x',buffer[0])+'\n'
+var SSVID="Bytes 03:02\tSSVID(PCI Subsystem Vendor ID):"+"0x"+fmt('%02x',buffer[3])+fmt('%02x',buffer[2])+'\n'
+var message='' 
+for(var i = 4;i<=23;i++){
+     message = message+String.fromCharCode(buffer[i])
+}
+var Serial  = "Bytes 23:04 \t "+ "Serial number : " +message +'\n'
+var message ="" 
+for(var i =24 ;i<=63;i++){
+    message = message+String.fromCharCode(buffer[i])
+}
+var Model="Bytes 63:24\t "+"Model : "  +message+'\n'
+var message ="" 
+for(var i =64 ;i<=71;i++){
+    message = message+String.fromCharCode(buffer[i])
+}
+var FW  = "Bytes 71:64\t"+"Firmware ver : " +message+'\n'
+var RAB = "Byte     72\tRAB(Recommended Arbitration Burst):"+fmt('0x%02x',buffer[72])+'\n'
+var IEEE ="Bytes 75:73\tIEEE(IEEE OUI Identifier):"+fmt('%02x',buffer[73])+fmt('%02x',buffer[74])+fmt('%02x',buffer[75])+'\n'
+var CMIC ="Byte     76\tCMIC(Controller Multi-Path I/O and Namespace sharing Capabilities):"+fmt('0x%02x',buffer[76])+'\n'
+var MDTS= "Byte     77\tMDTS(Maximum Data Transfer Size):"+fmt('0x%02x',buffer[77])+'-Means '+(1<<buffer[77])+' * CAP.MPSMIN bytes \n'
+var CNTLID ="Bytes 79:78\tCNTLID(Controller ID):"+fmt('0x%02x',(buffer[78]))+fmt('%02x',(buffer[79]))+'\n'
+var VER="Bytes 83:80\tVER(Version):"+fmt('0x%02x',(buffer[80]))+fmt('%02x',(buffer[81]))+fmt('%02x',(buffer[82]))+fmt('%02x',(buffer[83]))+'\n'
+var RTD3R="Bytes 87:84\tRTD3R(RTD3 Resume Latency):"+fmt('0x%02x',(buffer[84]))+fmt('%02x',(buffer[85]))+fmt('%02x',(buffer[86]))+fmt('%02x',(buffer[87]))+'\n'
+var RTD3E="Bytes 91:88\tRTD3E(RTD3 Entry Latency):"+fmt('0x%02x',(buffer[88]))+fmt('%02x',(buffer[89]))+fmt('%02x',(buffer[90]))+fmt('%02x',(buffer[91]))+'\n'
+var OAES="Bytes 95:92\tOAES(Optional Asynchronous Events Supported):"+fmt('0x%02x',(buffer[92]))+fmt('%02x',(buffer[93]))+fmt('%02x',(buffer[94]))+fmt('%02x',(buffer[95]))+'\n'
+var OACS="Bytes 257:256\tOACS(Optional Admin Command Support):"+fmt('0x%02x',(buffer[256]))+fmt('%02x',(buffer[257]))+'\n'
+var ACL= "Byte 258\tACL(Abort Command Limit):"+fmt('0x%02x',(buffer[258]))+'\n'
+var AERL="Byte 259\tAERL(Asynchronous Event Request Limit):"+fmt('0x%02x',(buffer[259]))+'\n'
+var FRMW="Byte 260\tFRMW(Firmware Updates):"+fmt('0x%02x',(buffer[260]))+'\n'
+var LPA="Byte 261\tLPA(Log Page Attributes):"+fmt('0x%02x',(buffer[261]))+'\n'
+var ELPE="Byte 262\tELPE(Error Log Page Entries):"+fmt('0x%02x',(buffer[262]))+'\n'  
+var NPSS="Byte 263\tNPSS(Number of Power States Support):"+fmt('0x%02x',(buffer[263]))+'\n' 
+var AVSCC="Byte 264\tAVSCC(Admin Vendor Specific Command Configuration):"+ fmt('0x%02x',(buffer[264]))+'\n'          
+var APSTA="Byte 265\tAPSTA(Autonomous Power State Transition Attributes):"+fmt('0x%02x',(buffer[265]))+'\n'              
+var WCTEMP="Bytes 267:266\tWCTEMP(Warning Composite Temperature Threshold):"+fmt('0x%02x',(buffer[266]))+fmt('%02x',(buffer[267]))+'\n'            
+var CCTEMP="Bytes 269:268\tCCTEMP(Critical Composite Temperature Threshold):"+fmt('0x%02x',(buffer[268]))+fmt('%02x',(buffer[269]))+'\n'         
+var MTFA="Bytes 271:270\tMTFA(Maximum Time for Firmware Activation):"+fmt('0x%02x',(buffer[270]))+fmt('%02x',(buffer[271]))+'\n'          
+var HMPRE="Bytes 275:272\tHMPRE(Host Memory Buffer Preferred Size):"+fmt('0x%02x',(buffer[272]))+fmt('%02x',(buffer[273]))+fmt('%02x',(buffer[274]))+fmt('%02x',(buffer[275]))+'\n'           
+var HMMIN="Bytes 279:276\tHMMIN(Host Memory Buffer Minimum Size):"+fmt('0x%02x',(buffer[276]))+fmt('%02x',(buffer[277]))+fmt('%02x',(buffer[278]))+fmt('%02x',(buffer[279]))+'\n'
+var print_s=''
+for(var j=280;j<296;j++){
+    print_s = print_s +fmt('%02x',(buffer[j]))
+}
+var TNVMCAP="Bytes 295:280 \tTNVMCAP(Total NVM Capacity):"+"0x"+print_s+"\n"
+var print_s=''
+for(var m=296;m<312;m++){
+    print_s = print_s +fmt('%02x',(buffer[m]))
+}
+var UNVMCAP="Bytes 311:296 \tUNVMCAP(Unallocated NVM Capacity):"+'0x'+print_s+"\n"
+var RPMBS="Bytes 315:312 \tRPMBS(Replay Protected Memory Block Support):"+fmt('0x%02x',(buffer[312]))+fmt('%02x',(buffer[313]))+fmt('%02x',(buffer[314]))+fmt('%02x',(buffer[315]))+"\n"
+var SQES="Byte 512 \tSQES(Submission Queue Entry Size):"+fmt('0x%02x',(buffer[512]))+"\n"
+var CQES="Byte 513 \tCQES(Completion Queue Entry Size):"+fmt('0x%02x',(buffer[513]))+"\n"
+var MN="Bytes 519:516 \tMN(Number of Namespaces):"+fmt('0x%02x',(buffer[516]))+fmt('%02x',(buffer[517]))+fmt('%02x',(buffer[518]))+fmt('%02x',(buffer[519]))+'\n'
+var ONCS="Bytes 521:520 \tONCS(Optional NVM Command Support):"+fmt('0x%02x',(buffer[520]))+fmt('%02x',(buffer[521]))+'\n'
+var FUSES="Bytes 523:522 \tFUSES(Fused Operation Support)"+fmt('0x%02x',(buffer[522]))+fmt('%02x',(buffer[523]))+'\n'
+var FNA="Byte 524 \tFNA(Format NVM Attributes):"+fmt('0x%02x',(buffer[524]))+"\n"
+var VWC="Byte 525 \tVWC(Volatile Write Cache):"+fmt('0x%02x',(buffer[525]))+'\n'
+var AWUN="Bytes 527:526 \tAWUN(Atomic Write Unit Normal):"+fmt('0x%02x',(buffer[526]))+fmt('%02x',(buffer[527]))+'\n'
+var AWUPF="Bytes 529:528 \tAWUPF(Atomic Write Unit Power Fail):"+fmt('0x%02x',(buffer[528]))+fmt('%02x',(buffer[529]))+'\n'
+var NVSCC="Byte 530 \tNVSCC(NVM Vendor Specific Command Configuration):"+fmt('0x%02x',(buffer[530]))+'\n'
+var ACWU="Bytes 533:532 \tACWU(Atomic Compare &Write Unit):"+fmt('0x%02x',(buffer[532]))+fmt('%02x',(buffer[533]))+'\n'
+var SGLS="Bytes 539:536 \tSGLS(SGL Support)"+fmt('0x%02x',(buffer[536]))+fmt('%02x',(buffer[537]))+fmt('%02x',(buffer[538]))+fmt('%02x',(buffer[539]))+'\n'
+var string="identify 1"+"\n"
+string=string+VID+SSVID+Serial+Model+FW+RAB+IEEE+CMIC+MDTS+CNTLID+VER+RTD3R+RTD3E+OAES+OACS+ACL+AERL+FRMW+LPA+ELPE+NPSS+AVSCC+APSTA+WCTEMP+CCTEMP+MTFA+HMPRE+HMMIN+TNVMCAP+
+       UNVMCAP+RPMBS+SQES+CQES+MN+ONCS+FUSES+FNA+VWC+AWUN+AWUPF+NVSCC+ACWU+SGLS+"\n"
+//info(string)
+log.appendFileSync(file,string)
+info('====================identify control  finished!=======================')
+
+select(device_no, 0, 1)
+//======================================================================
+for (var cookie = 0; cookie <loopcount; cookie++)
+{
+    write_async(zone_wr_size*cookie, zone_wr_size, cookie, zone_wr_size*SECTOR_SIZE*cookie)
+}
+
+door_bell()
+var comm_num = loopcount;
+while (comm_num > 0) {
+
+    ret = retrieve()
+    comm_num -= ret.cnt
+    for(var i = 0; i<ret.cnt;i++)
+    {
+        if(ret.results[i].status){
+
+            info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+            testlogs.dump_register()
+
+            return HWError_Code;
+        }   
+    }
+}
+
+info('====================write command 1000 finished!=======================')
+//============================================================================
+for (var cookie = 0; cookie <loopcount; cookie++)
+{
+    read_async(zone_wr_size*cookie, zone_wr_size, cookie, zone_wr_size*SECTOR_SIZE*cookie)
+
+}
+
+door_bell()
+var comm_num = loopcount;
+
+while (comm_num > 0) {
+
+    ret = retrieve()
+    comm_num -= ret.cnt
+    for(var i = 0; i<ret.cnt;i++)
+    {
+        if(ret.results[i].status){
+
+            info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+            testlogs.dump_register()
+
+            return HWError_Code;
+        }   
+    }
+}
+info('====================read  command 1000 finished!=======================')
+
+//============================================================================
+var r = cmp(loopcount*SECTOR_SIZE*zone_wr_size, 0, 0)
+if ( r ) { 
+
+    send_msg =  "Failed sector_no = "+Math.floor(r/SECTOR_SIZE)+'offset = '+r%SECTOR_SIZE 
+    info(send_msg)
+    logs.output_info(send_msg+'\n')
+    history_dump( path +"info/"+ time+sysid+ "_"+pid + '.jhist');
+    testlogs.dump_register()
+    logs.output_w_buff(r);
+    logs.output_r_buff(r);
+
+    return MisCompare_Code
+}
+else
+{
+    info('====================compare  command 1000 finished!=======================')
+}
+var string="get features:\n"
+log.appendFileSync(file,string)
+var str=""
+select(device_no, 0, 0)
+var buf = new Buffer(4096)
+for(var fid =1;fid<12;fid++){    
+    get_features_async(fid, buf, 4096, 0)
+    door_bell()
+    var comm_num = 1;
+    while (comm_num > 0) {
+
+        ret = retrieve()
+        comm_num -= ret.cnt
+        if(fid==1)
+            str="fid:"+fid+" Arbitration: "+fmt("0x%08x",ret.results[0].result)+"\n"
+        if(fid==2)
+            str="fid:"+fid+" Power Management: "+fmt("0x%08x",ret.results[0].result)+"\n"
+        if(fid==3)
+            str="fid:"+fid+" LBA Range Type: "+fmt("0x%08x",ret.results[0].result)+"\n"
+        if(fid==4)
+            str="fid:"+fid+" Temperature Threshold: "+fmt("0x%08x",ret.results[0].result)+"\n"
+        if(fid==5)
+            str="fid:"+fid+" Error Recovery: "+fmt("0x%08x",ret.results[0].result)+"\n"
+        if(fid==6)
+            str="fid:"+fid+" Volatile Write Cache: "+fmt("0x%08x",ret.results[0].result)+"\n"
+        if(fid==7)
+            str="fid:"+fid+" Number of Queues: "+fmt("0x%08x",ret.results[0].result)+"\n"
+        if(fid==8)
+            str="fid:"+fid+" Interrupt Coalescing: "+fmt("0x%08x",ret.results[0].result)+"\n"
+        if(fid==9)
+            str="fid:"+fid+" Interrupt Vector Configuration: "+fmt("0x%08x",ret.results[0].result)+"\n"
+        if(fid==10)
+            str="fid:"+fid+" Write Atomicity Normal: "+fmt("0x%08x",ret.results[0].result)+"\n"
+        if(fid==11)
+            str="fid:"+fid+" Asynchronous Event Configuration: "+fmt("0x%08x",ret.results[0].result)+"\n"
+        //info(str)
+        if(ret.results[0].status){
+
+            info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[0].cookie,ret.results[0].result,ret.results[0].status,ret.results[0].costtime))
+
+        }   
+        
+    } 
+    log.appendFileSync(file,str)
+}
+
+info('====================get features  finished!=======================')
+
+buffer.fill(0)
+select(device_no, 0, 0)
+var st="get log page\n"
+var log_len
+log.appendFileSync(file,st)
+for(var lid=1;lid<4;lid++){
+	
+	if (lid == 1)
+		log_len = 64
+	else if(lid == 2)
+		log_len = 512
+	else
+		log_len = 512	
+    get_log_page_async(buffer, log_len,lid, 0)
+    door_bell()
+    var comm_num = 1;
+    while (comm_num > 0) { 
+        ret = retrieve()
+        comm_num -= ret.cnt
+        for(var i = 0; i<ret.cnt;i++)
+        {
+            if(ret.results[i].status){
+                info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                testlogs.dump_register()
+                return HWError_Code;
+            }   
+        }
+    }
+    if(lid==1){
+        str="lid:"+lid+" Error Information : "+"\n"
+        var print_s=''
+        for(var m=7;m>=0;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Error Count: "+"0x"+print_s+"\n"
+        str=str+"Submission Queue ID: "+"0x"+fmt('%02x',(buffer[9]))+fmt('%02x',(buffer[8]))+"\n"
+        str=str+"Command ID: "+"0x"+fmt('%02x',(buffer[11]))+fmt('%02x',(buffer[10]))+"\n"
+        str=str+"Status Field: "+"0x"+fmt('%02x',(buffer[13]))+fmt('%02x',(buffer[12]))+"\n"
+        str=str+"Parameter Error Location: "+"0x"+fmt('%02x',(buffer[15]))+fmt('%02x',(buffer[14]))+"\n"
+        var print_s=''
+        for(var m=23;m>=16;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"LBA: "+"0x"+print_s+"\n"
+        str=str+"Namespace: "+"0x"+fmt('%02x',(buffer[27]))+fmt('%02x',(buffer[26]))+fmt('%02x',(buffer[25]))+fmt('%02x',(buffer[24]))+"\n"
+        str=str+"Vendor Specific Information Available: "+"0x"+fmt('%02x',(buffer[28]))+"\n"
+        var print_s=''
+        for(var m=39;m>=32;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Command Specific Information: "+"0x"+print_s+"\n"
+    }    
+    if(lid==2){
+        str="lid:"+lid+" SMART / Health Information: "+"\n"
+        str=str+"Critical Warning: "+fmt('0x%02x',(buffer[0]))+"\n"
+        str=str+"Composite Temperature: "+fmt('0x%02x',(buffer[2]))+fmt('%02x',(buffer[1]))+"\n"
+        str=str+"Available Spare: "+fmt('0x%02x',(buffer[3]))+"\n"
+        str=str+"Available Spare Threshold: "+fmt('0x%02x',(buffer[4]))+"\n"
+        str=str+"percentage Used: "+fmt('0x%02x',(buffer[5]))+"\n"
+        var print_s=''
+        for(var m=47;m>=32;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Data Units Read: "+"0x"+print_s+"\n"
+        var print_s=''
+        for(var m=63;m>=48;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Data Units written: "+"0x"+print_s+"\n"
+        var print_s=''
+        for(var m=79;m>=64;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Host Read Commands: "+"0x"+print_s+"\n"
+        var print_s=''
+        for(var m=95;m>=80;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Host Write Commands: "+"0x"+print_s+"\n"
+        var print_s=''
+        for(var m=111;m>=96;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Controller Busy Time: "+"0x"+print_s+"\n"
+        var print_s=''
+        for(var m=127;m>=112;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Power Cycles: "+"0x"+print_s+"\n"
+        var print_s=''
+        for(var m=143;m>=128;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Power On Hours: "+"0x"+print_s+"\n"
+        var print_s=''
+        for(var m=159;m>=144;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Unsafe Shutdowns: "+"0x"+print_s+"\n"
+        var print_s=''
+        for(var m=175;m>=160;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Media and Data Integrity Errors: "+"0x"+print_s+"\n"
+        var print_s=''
+        for(var m=191;m>=176;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Number of Error Information Log Entries: "+"0x"+print_s+"\n"
+        var print_s=''
+        for(var m=195;m>=192;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Warning Composite Temperature Time: "+"0x"+print_s+"\n"
+        var print_s=''
+        for(var m=199;m>=196;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Critical Composite Temperature Time: "+"0x"+print_s+"\n"
+    }
+
+    if(lid==3){
+        str="lid:"+lid+" Firmware Slot Information: "+"\n"
+        str="Active Firmware Info: "+fmt('0x%02x',(buffer[0]))+"\n"
+        var print_s=''
+        for(var m=15;m>=8;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Firmware Revision for Slot 1: "+"0x"+print_s+"\n"
+        var print_s=''
+        for(var m=23;m>=16;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Firmware Revision for Slot 2: "+"0x"+print_s+"\n"
+        var print_s=''
+        for(var m=31;m>=24;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Firmware Revision for Slot 3: "+"0x"+print_s+"\n"
+        var print_s=''
+        for(var m=39;m>=32;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Firmware Revision for Slot 4: "+"0x"+print_s+"\n"
+        var print_s=''
+        for(var m=47;m>=40;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Firmware Revision for Slot 5: "+"0x"+print_s+"\n"
+        var print_s=''
+        for(var m=55;m>=48;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }
+        str=str+"Firmware Revision for Slot 6: "+"0x"+print_s+"\n"
+        var print_s=''
+        for(var m=63;m>=56;m--){
+            print_s = print_s +fmt('%02x',(buffer[m]))
+        }    
+        str=str+"Firmware Revision for Slot 7: "+"0x"+print_s+"\n"
+    }    
+    log.appendFileSync(file,str)
+    //info(str)  
+}
+info('====================get log page  finished!=======================')
+select(device_no, 0, 1)
+
+write_uncor_async(100,8,1,0)
+door_bell(1)
+var comm_num = 1;
+while (comm_num > 0) {
+
+    ret = retrieve()
+    comm_num -= ret.cnt
+    for(var i = 0; i<ret.cnt;i++)
+    {
+        if(ret.results[i].status){
+
+            info(sprintf(' Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+            testlogs.dump_register()
+
+            return HWError_Code;
+        }   
+    }
+}
+try{
+   select(device_no, 0, 1)
+   read_async(100, 8, 2, 0)
+   door_bell()
+   var comm_num = 1;
+    while (comm_num > 0) {
+    
+        ret = retrieve()
+        comm_num -= ret.cnt
+        for(var i = 0; i<ret.cnt;i++)
+        {
+            if(ret.results[i].status){
+                info(sprintf('Read after write_uncor_async Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                testlogs.dump_register()            
+            }   
+        }
+    }
+}
+catch (e)
+{
+    info('====================after write_uncor,lba can not read====================')
+}
+
+write_async (100, 8, 1, 0)
+door_bell()
+var comm_num = 1;
+while (comm_num > 0) {
+
+    ret = retrieve()
+    comm_num -= ret.cnt
+    for(var i = 0; i<ret.cnt;i++)
+    {
+        if(ret.results[i].status){
+
+            info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+            testlogs.dump_register()
+
+            return HWError_Code;
+        }   
+    }
+}
+
+
+info('====================write uncorrectable  finished!=======================')
+
+select(device_no, 0, 0)
+var cookie=0
+for(var q_id = 1;q_id<=Q_NUM;q_id++){
+    delete_io_sq(q_id,cookie++)
+    door_bell(0)
+    var num = 1
+    while (num > 0){      
+       ret = retrieve()
+       num -= ret.cnt    
+        for(var i = 0; i<ret.cnt;i++)
+        {
+            if(ret.results[i].status){
+                info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                testlogs.dump_register()
+                return HWError_Code;
+            }   
+        }
+    }
+    delete_io_cq(q_id,cookie++)
+    door_bell(0)
+    var num = 1
+    while (num > 0){
+      
+        ret = retrieve()
+        num -= ret.cnt
+    
+/*      for(var i = 0; i<ret.cnt;i++)
+        {
+            if(ret.results[i].status){
+
+
+                info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                testlogs.dump_register()
+
+                return HWError_Code;
+            }   
+        }*/
+    }
+    create_io_cq(q_id,1024,cookie++)
+    door_bell(0)
+    var num = 1
+    while (num > 0){
+      
+       ret = retrieve()
+       num -= ret.cnt    
+        /*for(var i = 0; i<ret.cnt;i++)
+        {
+            if(ret.results[i].status){
+                info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                testlogs.dump_register()
+                return HWError_Code;
+            }   
+        }*/
+    }
+    create_io_sq(q_id,1024,cookie++)
+    door_bell(0)
+    var num = 1
+    while (num > 0){
+      
+       ret = retrieve()
+       num -= ret.cnt    
+        for(var i = 0; i<ret.cnt;i++)
+        {
+            if(ret.results[i].status){
+                info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                testlogs.dump_register()
+                return HWError_Code;
+            }   
+        }
+    }
+/*    select(device_no, 0, q_id)
+    read_async (100, 8, 0, 0)
+    door_bell(q_id)
+    cnt = 1
+    while (cnt > 0) {
+        var ret = retrieve()
+        cnt -= ret.cnt
+        if(ret.results[i].status){
+
+            info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+            testlogs.dump_register()
+            return HWError_Code;
+        }  
+    }*/
+}
+
+info('====================dalete queue and create queue  finished!=======================')
+select(device_no, 0, 2)
+var comm_num = 0
+for(var i = 0;i<255;i++){
+    flush_async(2, 0)
+    comm_num++
+}
+door_bell(2)
+
+while (comm_num > 0) {
+
+    ret = retrieve()
+    comm_num -= ret.cnt
+
+    for(var i = 0; i<ret.cnt;i++)
+    {
+        if(ret.results[i].status){
+
+            info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+            testlogs.dump_register()
+
+            return HWError_Code;
+        }   
+    }
+}
+
+info('====================flush  finished!=======================')
+
+select(device_no,0,0)
+
+var buffer = new Buffer(4096)
+var buf = new Buffer(4096)
+buffer.fill(0)
+buf.fill(0)
+get_features_async(4, buf, 4096, 0)
+door_bell(0)
+var ret1
+num = 1
+while (num > 0){
+    ret1 = retrieve() 
+    num -= ret1.cnt
+}
+var temper = ret1.results[0].result
+console.log("temprature read for the first time:%dK",temper)
+console.log("temprature set to :%dK",0x160)
+set_features_async (4, buffer, 4096, 0x160, 0)
+door_bell(0)
+var num = 1
+var ret1
+while (num > 0){
+        ret1 = retrieve() 
+        num -= ret1.cnt
+}
+
+get_features_async(4, buf, 4096, 0)
+door_bell(0)
+num = 1
+
+while (num > 0){
+
+        ret1 = retrieve() 
+        num -= ret1.cnt
+    }
+console.log("temprature read for the second time:%dK",ret1.results[0].result)
+
+set_features_async (4, buffer, 4096, temper, 0)
+door_bell(0)
+var num = 1
+var ret1
+while (num > 0){
+        ret1 = retrieve() 
+        num -= ret1.cnt
+    }
+get_features_async(4, buf, 4096, 0)
+door_bell(0)
+num = 1
+while (num > 0){
+
+        ret1 = retrieve() 
+        num -= ret1.cnt
+}
+var temper = ret1.results[0].result
+console.log("temprature set back to :%dK",temper)
+
+info('====================set_features  finished!=======================')
+
+var cnt = 100
+var total_cnt = cnt
+var tag = {tag:0}
+var tag1 = {tag:0}
+var tag2 = {tag:0}
+var tag3 = {tag:0}
+var tag4 = {tag:0}
+var tag5 = {tag:0}
+
+select(device_no,0,1)
+for (var i = 0; i != cnt; i++)
+{
+    if(i == 90)
+      read_async(0, 256, i, 0, tag)
+    if(i == 91)
+      read_async(0, 256, i, 0, tag1)
+    if(i == 92)
+      read_async(0, 256, i, 0, tag2)
+    if(i == 93)
+      read_async(0, 256, i, 0, tag3)
+    if(i == 94)
+      read_async(0, 256, i, 0, tag4)
+    if(i == 95)
+      read_async(0, 256, i, 0, tag5)
+
+    if(i != 90 && i != 91 && i != 92 && i != 93 && i != 94 && i != 95)
+      read_async(0, 256, i, 0)
+
+}
+door_bell()
+/*console.log("tag:%d",tag.tag)
+console.log("tag1:%d",tag1.tag)
+console.log("tag2:%d",tag2.tag)
+console.log("tag3:%d",tag3.tag)
+console.log("tag4:%d",tag4.tag)
+console.log("tag5:%d",tag5.tag)*/
+abort_cmd_async(tag.tag, 1, 100)
+abort_cmd_async(tag1.tag, 1, 101)
+abort_cmd_async(tag2.tag, 1, 102)
+abort_cmd_async(tag3.tag, 1, 103)
+abort_cmd_async(tag4.tag, 1, 104)
+abort_cmd_async(tag5.tag, 1, 105)
+door_bell(0)
+
+cnt = 106
+while (cnt != 0) {
+  var ret = retrieve()
+  cnt -= ret.cnt
+  for(var j = 0; j < ret.cnt; j++)
+      if(ret.results[j].status!=0){
+         console.log("cookie:%d,status:%d,result:%d",ret.results[j].cookie,ret.results[j].status,ret.results[j].result)
+      }   
+}
+
+info('====================abort_cmd  finished!=======================')
+
+/*async_event(0)
+delete_io_sq(2,1)
+door_bell(0)
+var comm_num = 1;
+while (comm_num > 0) {
+
+    ret = retrieve()
+    comm_num -= ret.cnt
+
+    for(var i = 0; i<ret.cnt;i++)
+    {
+        if(ret.results[i].status){
+
+            info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+            testlogs.dump_register()
+
+            return HWError_Code;
+        }   
+    }
+}
+select(device_no,0,2)
+
+try{
+
+   read_async(10, 8, 0, 0)
+
+    
+}
+catch (e)
+{    
+    create_io_sq(q_id,1024,cookie++)
+    door_bell(0)
+    var num = 1
+    while (num > 0){
+      
+       ret = retrieve()
+       num -= ret.cnt
+    
+        for(var i = 0; i<ret.cnt;i++)
+        {
+            if(ret.results[i].status){
+
+                info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                testlogs.dump_register()
+
+                return HWError_Code;
+            }   
+        }
+    }
+
+
+}
+*/
+info('====================async_event  finished!=======================')

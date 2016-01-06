@@ -1,0 +1,64 @@
+------------------- System Infomation -------------------------------
+System Name: nvme0
+System IP: 10.30.2.48
+HBA:	 Intel Corporation Device 0953 (rev 01)
+Ubuntu version:	 Ubuntu 15.04
+Kernel version:	  3.19.0-30-generic 
+JUSTICE version:	 00.00.00
+---------------------------------------------------------------------
+
+------------------- Driver Infomation -------------------------------
+Driver Version:1.0.0Release
+PCIE info:
+Load driver successful:
+---------------------------------------------------------------------
+
+------------------- DUT Infomation ----------------------------------
+Model : INTEL SSDPEDMW400G4                     
+Serial No :CVCQ5152003E400AGN  
+Firmware :8EV10135
+Capacity :400
+Total LBA :781422768
+HBA :
+---------------------------------------------------------------------
+
+------------------- Script Infomation -------------------------------
+Vendor : Maxio-0042
+Script Name :/home/gong/justice-script/coretest/1126.jcore
+Date :2015-10-15
+Time :11:44:17
+Expect Running Time : 2
+Random seed:1444880657656
+Test start ...
+---------------------------------------------------------------------
+
+------------------- Config Infomation -------------------------------
+Access method :	1
+Zone Start :5786107
+Zone Size:15635085
+Zone Write Size :256
+---------------------------------------------------------
+Power cycle :
+FUA :
+Trim :
+Write Cache :
+Error Injection :
+Queue :
+Name Space :
+---------------------------------------------------------------------
+
+------------------- Config Infomation -------------------------------
+Access method :	2
+Zone Start :5786107
+Zone Size:15635085
+Zone Write Size :256
+---------------------------------------------------------
+Power cycle :
+FUA :
+Trim :
+Write Cache :
+Error Injection :
+Queue :
+Name Space :
+---------------------------------------------------------------------
+

@@ -1,0 +1,813 @@
+require('../../justice-cmd/command/nvme-cmd.js');
+var int53 = require('int53')
+var Random = require("random-js");
+var fmt = require('printf');
+var ini = require('multilevel-ini');
+var fs = require('fs');
+var output = require('../output/output.js');
+var shell = require('shelljs')
+var moment = require("moment");
+var pattype = '2' 
+var fixed_data = 0
+var random_seed= 0
+var flag = 'fix'
+var startvalue = 0
+var bytesize = 1
+var MAX_BUFFER_SIZE = 64 * 1024 * 1024
+var SECTOR_SIZE = 512
+var LBA_SIZE    = 8
+var PAT_HEAD = 16
+var PAT_TAIL = 16
+var ENDIAN = 0
+var ini_info = ''
+usr = new Array() 
+var pat_buf = new Buffer(MAX_BUFFER_SIZE)
+var w_buff = get_write_buffer()
+var r_buff = get_read_buffer()
+/*var mt_write = Random.engines.mt19937();
+var random1 = new Random(mt_write.seed(random_seed))
+
+var mt_recover = Random.engines.mt19937();
+var random2 = new Random(mt_recover.seed(random_seed))*/
+
+//seed(random_seed)
+
+function write_lba(buff,start_lba,nblk,off_sec)
+{
+	//console.log('write_lba',start_lba,nblk)
+	for(var i = 0; i<nblk;i++){
+		
+	   	write_bufferex(buff,(i+off_sec)*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+		
+		write_bufferex(buff,(i+off_sec)*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+	}
+
+}
+function write_bufferex(buff,offset,data,length,endian)
+{
+	if (length == 1)
+		buff[offset]=data
+	else if(length == 2)
+	{
+		buff[offset]= (data&0xff00)>> 8
+		buff[offset+1]= data&0xff 
+	}
+		 
+	else if(length == 4)
+	{
+	   buff[offset+0]= (data&0xff000000)>> 24
+	   buff[offset+1]= (data&0x00ff0000)>> 16
+	   buff[offset+2]= (data&0x0000ff00)>> 8
+	   buff[offset+3]= data&0xff  
+	}
+	  
+	else if(length == 8)
+	{
+
+		int53.writeUInt64BE(data, buff, offset)
+	}
+}
+function fill(start_lba,nblk,off_sec)
+{
+	write_lba(w_buff,start_lba,nblk,off_sec)
+}
+
+function pat_init(result) {
+
+	if (result )
+	{
+
+		 pattype = (result['core']['pattern']['type']) 
+		 fixed_data = Number(result['core']['pattern']['basedata'])
+		 random_seed= Number(result['core']['pattern']['random_seed'])
+		 flag = result['core']['pattern']['flag']
+		 startvalue = Number(result['core']['pattern']['startvalue'])
+		 bytesize = Number(result['core']['pattern']['bytesize'])
+	}
+	seed(random_seed)
+	pat_buf.fill(0);
+	if ((pattype =='number') ||(pattype == '0'))
+	{
+	
+		ini_info = 'pattern type is fixed value,' 
+		if((flag =='inc')||(flag == '1')){
+
+			ini_info = ini_info + 'data will increase,start data is: '+fmt('0x%04x',startvalue) +"\t byte step is "+ bytesize
+		}
+		else if((flag =='dec')||(flag == '2')){
+			
+			ini_info = ini_info + 'data will decrease,start data is:  '+fmt('0x%04x',startvalue)+"byte step is "+ bytesize
+		}
+		else if((flag =='fix')||(flag == '0')){
+
+			 ini_info = ini_info + 'data will keep the same,start data is: '+fmt('0x%4x',fixed_data) +"byte step is "+ bytesize
+		}
+
+		for (var i = 0;i < MAX_BUFFER_SIZE/SECTOR_SIZE;i++){
+
+	   		var temp = startvalue
+	   		//write pat[8] = pattype 
+	   		write_bufferex(pat_buf,i*SECTOR_SIZE+LBA_SIZE ,pattype,1,ENDIAN)
+	   		//write pat[9] = fixed_data 
+	   		write_bufferex(pat_buf,i*SECTOR_SIZE+LBA_SIZE + 1 ,fixed_data,1,ENDIAN)
+	   		//write pat[10] = flag 
+	   		write_bufferex(pat_buf,i*SECTOR_SIZE+LBA_SIZE + 2 ,flag,1,ENDIAN)
+	   		//write pat[10] = bytesize
+	   		write_bufferex(pat_buf,i*SECTOR_SIZE+LBA_SIZE + 3 ,bytesize,1,ENDIAN)
+	   		write_bufferex(pat_buf,i*SECTOR_SIZE+LBA_SIZE + 4 ,i,4,ENDIAN)
+
+	   	   	for(var j= PAT_HEAD; j < SECTOR_SIZE-PAT_TAIL; j=j+bytesize)
+	   	   	{
+
+	   	   		if((flag =='inc')||(flag == '1')){
+	   	   		
+	   	   			write_bufferex(pat_buf,i*SECTOR_SIZE+j ,temp++,bytesize,ENDIAN)
+	   	   		}
+	   	   		else if((flag =='dec')||(flag == '2')){
+				
+				 	write_bufferex(pat_buf,i*SECTOR_SIZE+j, temp--, bytesize,ENDIAN)
+				}
+				else if((flag =='fix')||(flag == '0')){
+					
+					write_bufferex(pat_buf,i*SECTOR_SIZE+j, fixed_data , bytesize,ENDIAN)
+				}
+
+	   	   	}
+
+	   	}
+
+	}
+	else if((pattype =='user') ||(pattype == '1'))
+	{
+		
+		ini_info = 'pattern type is userded,'+'byte step : '+ bytesize 
+		var data=fs.readFileSync(file,"utf-8")
+
+	    var data_index = 0;  
+		for (var i = 0;i < MAX_BUFFER_SIZE/SECTOR_SIZE;i++){
+
+			//write pat[8] = pattype 
+			write_bufferex(pat_buf,i*SECTOR_SIZE+LBA_SIZE ,pattype,1,ENDIAN)
+			//write pat[9] = fixed_data 
+			write_bufferex(pat_buf,i*SECTOR_SIZE+LBA_SIZE + 1 ,0x33,2,ENDIAN)
+			//write pat[10] = bytesize
+			write_bufferex(pat_buf,i*SECTOR_SIZE+LBA_SIZE + 3 ,bytesize,1,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+LBA_SIZE + 4 ,i,4,ENDIAN)
+
+			for(var j= PAT_HEAD; j < SECTOR_SIZE-PAT_TAIL; j=j+bytesize)
+	   	   	{
+
+	   	   		var temp = data[data_index++].charCodeAt()
+	   	   		if (data_index >= data.length-1)
+	   	   			data_index = 0
+
+	   	   		write_bufferex(pat_buf,i*SECTOR_SIZE+j ,temp,bytesize,ENDIAN)
+
+	   	   	}
+		
+	 	}
+	}
+	else if((pattype =='random') ||(pattype == '2'))
+	{
+	   ini_info = 'pattern type is random ' +'random seed is: ' + random_seed +'byte step : '+ bytesize
+
+	   	for (var i = 0;i < MAX_BUFFER_SIZE/SECTOR_SIZE;i++){
+
+	   		var temp = startvalue
+	   		//write pat[8] = pattype 
+	   		write_bufferex(pat_buf,i*SECTOR_SIZE+LBA_SIZE ,pattype,1,ENDIAN)
+	   		//write pat[9][10] = random_seed 
+	   		write_bufferex(pat_buf,i*SECTOR_SIZE+LBA_SIZE + 1 ,random_seed,2,ENDIAN)
+	   		//write pat[11] = bytesize
+	   		write_bufferex(pat_buf,i*SECTOR_SIZE+LBA_SIZE + 3 ,bytesize,1,ENDIAN)
+	   		write_bufferex(pat_buf,i*SECTOR_SIZE+LBA_SIZE + 4 ,i,4,ENDIAN)
+
+	   	   	for(var j= PAT_HEAD; j < SECTOR_SIZE-PAT_TAIL; j=j+bytesize)
+	   	   	{
+
+	   	   		var temp = rand(0,255)
+	   	   		write_bufferex(pat_buf,i*SECTOR_SIZE+j ,temp,bytesize,ENDIAN)
+
+	   	   	}
+
+	   	} 
+
+	}
+	info(ini_info) 
+	pat_buf.copy(w_buff)
+}
+ 
+function PatBased01(start_lba,sec_num)
+{   
+	
+  	var bytesize = 2
+	var temp = 0
+	var temp_buff = new Buffer(16)
+	temp_buff.fill(0)
+	for (var i =0 ;i < 15;i++)
+		temp_buff[i] = rand(0, 255)
+         //    temp_buff[i] = rand(0, 254)
+	
+	for(var i = 0; i<sec_num;i++){
+
+		for(var j=0; j<SECTOR_SIZE ;j=j+bytesize){
+			
+				write_bufferex(pat_buf,i*SECTOR_SIZE+j,temp ++,bytesize,ENDIAN)
+
+		}
+
+	   write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+	    
+		
+		for(var j=8; j<SECTOR_SIZE-LBA_SIZE ;j=j+16)
+	    {
+
+	    	temp_buff.copy(w_buff,j+i*SECTOR_SIZE,8,16)
+	    }
+		write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+		
+	}
+	
+
+}
+function PatBased02(start_lba,sec_num)
+{
+	var bytesize = 2
+	var oFileNum =1
+	var temp = 8
+	var temp_buff = new Buffer('xyzPattern Test')
+
+	for(var i = 0; i<sec_num;i++){
+		
+	   write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+	    
+		for(var j=16; j<SECTOR_SIZE-LBA_SIZE ;j=j+bytesize){
+			
+				write_bufferex(pat_buf,i*SECTOR_SIZE+j,temp ++,bytesize,ENDIAN)
+
+		}
+		write_bufferex(pat_buf,i*SECTOR_SIZE+8,oFileNum,2,ENDIAN);
+		temp_buff.copy(w_buff,13+i*SECTOR_SIZE,0,15)
+		for(var j=24; j<SECTOR_SIZE-LBA_SIZE ;j=j+16)
+	    {
+
+	    	temp_buff.copy(w_buff,j+i*SECTOR_SIZE,0,10)
+	    }
+		write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+		
+	}
+}
+function compress_pat(start_lba, pat_index)
+{
+
+	var temp_buff = new Buffer(512)
+	for (var i =0 ;i < 512;i++)
+		temp_buff[i] = rand(0, 255)
+	if(pat_index < 0x75)
+	{
+		PatBased01(start_lba,16)
+		
+	}
+	else if(pat_index < 0xe6)
+	{
+		PatBased02(start_lba,16)
+	//	pat_index = pat_index - 0x75
+	}
+
+	for(var i =0 ;i<16 ;i++)
+	{
+
+	//	w_buff.copy(mypat,i*SECTOR_SIZE,0,SECTOR_SIZE-1)
+		if(pat_index < 0x75){
+
+			write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+           //logs.output_4k(w_buff,2)
+		//	w_buff.copy(mypat,i*SECTOR_SIZE+8,8,9)
+		}
+        
+        else if(pat_index < 0xe6){
+        	
+        	write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+        }
+        
+        write_bufferex(pat_buf,i*SECTOR_SIZE+9,i,2,ENDIAN)
+
+    //    w_buff.copy(mypat,i*SECTOR_SIZE+9,i*SECTOR_SIZE+9,i*SECTOR_SIZE+11)
+       if(pat_index < 0x75){
+       		for(var j=48+pat_index*4; j<SECTOR_SIZE-LBA_SIZE ;j=j+1)
+			    {
+			    //	var temp = random1.integer(0, 255);
+			    //	mypat[i*SECTOR_SIZE+j]= temp;
+		            write_bufferex(pat_buf,i*SECTOR_SIZE+j,temp_buff[j-48+pat_index*4],1,ENDIAN)
+			    }
+       }
+        
+	
+	  else  if(pat_index < 0xe6){
+	    	pat_index = pat_index-0x75
+	    	for(var j=48+pat_index*4; j<SECTOR_SIZE-LBA_SIZE ;j=j+1)
+	            {
+	    //	var temp = random1.integer(0, 255);
+	    //	mypat[i*SECTOR_SIZE+j]= temp;
+		            write_bufferex(pat_buf,i*SECTOR_SIZE+j,temp_buff[j-48+pat_index*4],1,ENDIAN)
+			    }
+	    }
+
+	     write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+	//     w_buff.copy(mypat,i*SECTOR_SIZE,i*SECTOR_SIZE,i*SECTOR_SIZE+8)
+	     write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+	//    w_buff.copy(mypat,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE+8)
+	}
+
+	if(pat_index == 0xe6)
+	{
+		var temp = 0;
+		var temp2
+		temp2 = rand(0, 255)
+
+		var bytesize = 4;
+   
+		for(var i =0 ;i<16 ;i++)
+		{
+			for(var j=0; j<SECTOR_SIZE ;j=j+bytesize){
+
+				write_bufferex(pat_buf,i*SECTOR_SIZE+j,temp,bytesize,ENDIAN)
+				temp ++;
+
+			}
+			for(var j=0; j<SECTOR_SIZE ;j=j+bytesize){
+				temp --;
+
+			}
+
+			for(var j=1; j<SECTOR_SIZE ;j=j+bytesize){
+
+				write_bufferex(pat_buf,i*SECTOR_SIZE+j,temp2,2,ENDIAN);
+			    temp2++
+		
+			}
+			for(var j=1; j<SECTOR_SIZE ;j=j+bytesize){
+				temp2--
+			}
+
+			write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+9,i,2,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+			
+		}
+
+		return w_buff
+
+	}
+	else if(pat_index == 0xe7){
+		w_buff.fill(0)
+        var temp 
+		var temp2
+		var temp_buff = new Buffer('xyzPattern test')
+		var temp_buf = new Buffer('test test test')
+		temp = rand(0, 4294967296)
+		temp2 = rand(0, 255)
+		var bytesize = 4;
+       for(var i =0 ;i<16 ;i++){
+
+       	for(var j=32; j<SECTOR_SIZE ;j=j+bytesize){
+           write_bufferex(pat_buf,i*SECTOR_SIZE+j,temp,bytesize,ENDIAN)
+           temp++
+
+       	}
+       	for(var j=32; j<SECTOR_SIZE ;j=j+bytesize){
+           temp--
+       	}
+       	for(var j = 48;j<SECTOR_SIZE;j=j+8){
+       		write_bufferex(pat_buf,i*SECTOR_SIZE+j,temp2,2,ENDIAN)
+       		temp2++
+
+       	}
+       	for(var j = 48;j<SECTOR_SIZE;j=j+8){
+       		temp2--
+
+       	}
+
+        for(var j = 13; j < 28; j++){
+
+           write_bufferex(pat_buf,i*SECTOR_SIZE+j,temp_buff[j-13],1,ENDIAN)
+        }
+        for(var j = 32;j<46;j++){
+        	write_bufferex(pat_buf,i*SECTOR_SIZE+j,temp_buf[j-32],1,ENDIAN)
+        }
+        write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+		write_bufferex(pat_buf,i*SECTOR_SIZE+9,i,2,ENDIAN)
+		write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+		write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+       }
+       return w_buff
+	}
+	else if(pat_index == 0xe8){
+		w_buff.fill(0)
+        var temp 
+		var temp2
+		var temp3
+		var temp4
+		temp = rand(0, 256)
+		temp2 = rand(0, 256)
+		temp3 = rand(0, 256)
+		temp4 = rand(0, 256)
+		for (var i =0 ;i < SECTOR_SIZE;i++)
+		    temp_buff[i] = rand(0, 255)
+		for(var i = 0;i<16;i++){
+
+			for(var j= 0;j<SECTOR_SIZE;j++){
+			 write_bufferex(pat_buf,j+i*SECTOR_SIZE,temp_buff[j],1,ENDIAN)
+		    }
+		}
+		for(var i = 0;i<2048;i=i+8){
+			write_bufferex(pat_buf,i,temp,1,ENDIAN)
+            temp++
+		}
+	    for(var i= 1;i<SECTOR_SIZE*16;i=i+8){
+	    	write_bufferex(pat_buf,i,temp2,1,ENDIAN)
+	    	temp2++
+
+	    }
+	    for(var i = 2;i<8192;i=i+8){
+	    	write_bufferex(pat_buf,i,temp3,1,ENDIAN)
+	    }
+        for(var i = 3;i<8192;i=i+8){
+	    	write_bufferex(pat_buf,i,temp4,1,ENDIAN)
+	    }
+	    for(var i = 15;i<8192;i=i+16){
+	    	write_bufferex(pat_buf,i,0x00,1,ENDIAN)
+	    }
+	    for(var i = 0;i<16;i++){
+	    	write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+9,i,2,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN) 
+	    }
+	  
+     return w_buff
+	}
+	else if(pat_index == 0xe9){
+		w_buff.fill(0)
+		var temp 
+		
+		temp = rand(0, 255)
+		var temp_buff = new Buffer(512)
+	    for (var i =0 ;i < 8;i++)
+	    	temp_buff[i] = rand(0, 255)
+			     
+		for(var i = 8;i<16;i++){
+			write_bufferex(pat_buf,i,temp_buff[i-8],1,ENDIAN)
+		}
+		for(var i = 4;i<8192;i++){
+			for(var j = 0;j<8;j++){
+				write_bufferex(pat_buf,4*i+j,temp_buff[j],1,ENDIAN)
+			}
+			
+		}
+		for(var i = 8;i<SECTOR_SIZE*16;i=i+8){
+			write_bufferex(pat_buf,i,temp,1,ENDIAN)
+			temp++
+		}
+		for(var i = 0;i<16;i++){
+	    	write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+9,i,2,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN) 
+	    }
+	    return w_buff
+	}
+	else if(pat_index == 0xea||pat_index == 0xeb ||pat_index == 0xec){
+		var bytesize = 4;
+		var bytes = 8
+		var byte = 2
+		var j=0
+		var cop_buff = new Buffer(16)
+		var temp_buff = new Buffer(512)
+	    for (var i =0 ;i < 15;i++)
+	    	temp_buff[i] = rand(0, 255)
+	    if(pat_index == 0xea){
+	    	for(var i = 0;i<8192;i=i+8){	    	
+	    	write_bufferex(pat_buf,i,j,bytes,ENDIAN)
+            j++
+	    }
+	    }
+	    else if(pat_index == 0xeb){
+	    	for(var i = 0;i<8192;i=i+4){	    	
+	    	write_bufferex(pat_buf,i,j,bytesize,ENDIAN)
+            j++
+	    }
+	    }
+	    else if(pat_index == 0xec){
+	    	for(var i = 0;i<8192;i=i+2){	    	
+	    	write_bufferex(pat_buf,i,j,byte,ENDIAN)
+            j++
+	    }
+	    }
+	   
+        for(var i = 0;i<15;i++){
+            write_bufferex(pat_buf,i,temp_buff[i],1,ENDIAN)
+         }
+        w_buff.copy(cop_buff,0,8,16)
+        for(var i = 8;i<8192;i=i+16){
+       
+           cop_buff.copy(w_buff,i,0,8)
+        }
+        for(var i = 0;i<16;i++){
+	    	write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+9,i,2,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN) 
+	    }
+	    return w_buff
+	}
+	else if(pat_index == 0xed){
+		w_buff.fill(0)
+		var temp = 0x41
+		for(var i =0;i<16;i++){
+			for(var j = 0;j<512;j++){
+			write_bufferex(pat_buf,SECTOR_SIZE*i+j,temp,1,ENDIAN)
+		    }
+		    temp++
+		}
+
+		for(var i = 0;i<16;i++){
+	    	write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+9,i,2,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN) 
+	    }
+	    return w_buff		
+	}
+	else if(pat_index == 0xee||pat_index == 0xef||pat_index == 0xf0){
+	    var bytesize = 4;
+		var bytes = 8
+		var byte = 2
+		var j =0
+		var temp_buff = new Buffer('xyzPattern test')
+		if(pat_index == 0xee){
+		    for(var i = 0;i<8192;i=i+4){	    	
+	    	write_bufferex(pat_buf,i,j,bytesize,ENDIAN)
+            j++
+	    }
+		}
+		else if(pat_index == 0xef){
+		    for(var i = 0;i<8192;i=i+8){	    	
+	    	write_bufferex(pat_buf,i,j,bytes,ENDIAN)
+            j++
+	    }
+		}
+		else if(pat_index == 0xf0){
+		    for(var i = 0;i<8192;i=i+2){	    	
+	    	write_bufferex(pat_buf,i,j,byte,ENDIAN)
+            j++
+	    }
+		}
+
+	    for(var i=13;i<28;i++){
+	    	write_bufferex(pat_buf,i,temp_buff[i-13],1,ENDIAN)
+	    }
+	    for(var i = 24;i<8192;i=i+16){
+	    	temp_buff.copy(w_buff,i,0,10)
+	    }
+	   	for(var i = 0;i<16;i++){
+	    	write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+9,i,2,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN) 
+	    }
+	    return w_buff 
+	}
+	else if(pat_index == 0xf1||pat_index == 0xf2){
+	    var bytesize = 4;
+		var bytes = 8
+		var j =0
+		var temp_buff = new Buffer('xyzPattern test')
+		if(pat_index == 0xf1){
+		    for(var i = 0;i<8192;i=i+8){	    	
+	    	write_bufferex(pat_buf,i,j,bytes,ENDIAN)
+            j++
+	    }
+		}
+		else if(pat_index == 0xf2){
+		    for(var i = 0;i<8192;i=i+4){	    	
+	    	write_bufferex(pat_buf,i,j,bytesize,ENDIAN)
+            j++
+	    }
+		}
+		for(var i=13;i<28;i++){
+	    	write_bufferex(pat_buf,i,temp_buff[i-13],1,ENDIAN)
+	    }
+	    for(var i =45 ;i<8192;i=i+32){
+           temp_buff.copy(w_buff,i,0,15)  
+	    }
+	    for(var i = 0;i<16;i++){
+	    	write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+9,i,2,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN) 
+	    }
+	    return w_buff 
+
+	}
+	else if(pat_index == 0xf3||pat_index == 0xf4||pat_index == 0xf5){
+		var bytesize = 4;
+		var bytes = 8
+		var byte = 2
+		var j =0
+		var temp 		
+		temp = rand(0, 256)
+        var temp_buff = new Buffer('xyzPattern test')
+		if(pat_index == 0xf3){
+		    for(var i = 0;i<8192;i=i+4){	    	
+	    	write_bufferex(pat_buf,i,j,bytesize,ENDIAN)
+            j++
+	    }
+		}
+		else if(pat_index == 0xf4){
+		    for(var i = 0;i<8192;i=i+8){	    	
+	    	write_bufferex(pat_buf,i,j,bytes,ENDIAN)
+            j++
+	    }
+		}
+		else if(pat_index == 0xf5){
+		    for(var i = 0;i<8192;i=i+2){	    	
+	    	write_bufferex(pat_buf,i,j,byte,ENDIAN)
+            j++
+	    }
+		}
+		for(var i =48;i<512*2*4;i=i+8){
+           write_bufferex(pat_buf,i,temp,2,ENDIAN) 
+           temp++
+		}
+		for(var i=13;i<28;i++){
+	    	write_bufferex(pat_buf,i,temp_buff[i-13],1,ENDIAN)
+	    }
+	    for(var i =77 ;i<8192;i=i+64){
+           temp_buff.copy(w_buff,i,0,15)  
+	    }
+	    for(var i = 0;i<16;i++){
+	    	write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+9,i,2,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN) 
+	    }
+	    return w_buff 
+	}
+	else if(pat_index == 0xf6||pat_index == 0xf7){
+		var bytesize = 4;
+		var byte = 2
+		var j =0
+		if(pat_index == 0xf6){
+		    for(var i = 0;i<8192;i=i+2){	    	
+	    	write_bufferex(pat_buf,i,j,byte,ENDIAN)
+            j++
+	    }
+		}
+		else if(pat_index == 0xf7){
+		    for(var i = 0;i<8192;i=i+4){	    	
+	    	write_bufferex(pat_buf,i,j,bytesize,ENDIAN)
+            j++
+	    }
+		}
+		for(var i = 0;i<16;i++){
+	    	write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+9,i,2,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN) 
+	    }
+	    return w_buff 
+	}
+	else if(pat_index == 0xf8){
+		w_buff.fill(0)
+		var temp_buff = new Buffer('test')
+		for(var i =0;i<512*2*2;i=i+4){
+           temp_buff.copy(w_buff,i,0,5)            
+		}
+		for(var i = 0;i<16;i++){
+	    	write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+9,i,2,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN) 
+	    }
+	    return w_buff 
+	}
+	else if(pat_index == 0xf9){
+		var temp =0x55
+		for(var i = 0;i<8192;i++){
+			write_bufferex(pat_buf,i,temp,1,ENDIAN)
+		}
+		for(var i = 0;i<16;i++){
+	    	write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+9,i,2,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN) 
+	    }
+	    return w_buff 	
+	}
+	else if(pat_index == 0xfa){
+		for(var i=0;i<8192;i++){
+			write_bufferex(pat_buf,i,i,1,ENDIAN)
+		}
+		for(var i = 0;i<16;i++){
+	    	write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+9,i,2,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN) 
+	    }
+	    return w_buff 
+	}
+	else if(pat_index == 0xfb){
+		w_buff.fill(0)
+		var temp 		
+		var temp_buff = new Buffer(512)
+		for (var i =0 ;i < 8;i++)
+	    	temp_buff[i] = rand(0, 255)
+	    for(var i = 8;i<8192;i=i+8){
+	    	temp_buff.copy(w_buff,i,0,8)  
+	    }
+	    for(var i = 0;i<16;i++){
+	    	write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+9,i,2,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN) 
+	    }
+	    return w_buff 
+	}
+	else if(pat_index == 0xfc){
+		w_buff.fill(0)
+		var temp=0x01
+		for(var i =0;i<16;i++){
+			for(var j=0;j<SECTOR_SIZE;j=j+4){
+               write_bufferex(pat_buf,i*SECTOR_SIZE+j,temp,1,ENDIAN)
+			}
+			temp++
+		}
+	    for(var i = 0;i<16;i++){
+	    	write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+9,i,2,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN) 
+	    }
+	    return w_buff 	
+	}
+	else if(pat_index == 0xfd){
+		w_buff.fill(0)
+		var temp=0x01
+		for(var i =0;i<16;i++){
+			for(var j=0;j<SECTOR_SIZE;j++){
+               write_bufferex(pat_buf,i*SECTOR_SIZE+j,temp,1,ENDIAN)
+			}
+			temp++
+		}
+	    for(var i = 0;i<16;i++){
+	    	write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+9,i,2,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN) 
+	    }
+	    return w_buff 	
+	}
+	else if(pat_index == 0xfe){
+		w_buff.fill(0)
+		var temp_buff = new Buffer('Pattern test')
+		for(var i=16;i<28;i++){
+	    	write_bufferex(pat_buf,i,temp_buff[i-16],1,ENDIAN)
+	    }
+	    for(var i =0;i<4;i++){
+		    	temp_buff[i+12]=0
+		}
+	    for(var i =32 ;i<8192;i=i+16){
+           temp_buff.copy(w_buff,i,0,16)  
+	    }
+
+	    for(var i = 0;i<16;i++){
+	    	write_bufferex(pat_buf,i*SECTOR_SIZE+8,pat_index,1,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+9,i,2,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE,start_lba + i,LBA_SIZE,ENDIAN)
+			write_bufferex(pat_buf,i*SECTOR_SIZE+SECTOR_SIZE-LBA_SIZE,start_lba + i,LBA_SIZE,ENDIAN) 
+	    }
+	    return w_buff 	
+	}
+//return mypat;
+return w_buff
+}
+if (require.main === module) {
+
+	pattype = 1
+	fixed_data =0xaa
+	flag = 1
+	bytesize = 1
+	random_seed = 0x5566
+	file = '1.txt'
+	pat_init()
+	//fill(0x1234,10)
+	output.output_nline(w_buff,256,1)
+}
+exports.PatBased01 = PatBased01
+exports.PatBased02 = PatBased02
+exports.compress_pat = compress_pat
+exports.pat_init = pat_init
+exports.write_lba = write_lba
+exports.fill = fill

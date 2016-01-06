@@ -1,0 +1,306 @@
+Oct 15 2015 11:44:17	 ASYNC Sequential zone_start:5786107,	zone_end:21421192,	zone_size:15635085,	zone_wr_size:256,	zone_loop:	0	q_num:8	q_depth:512
+Oct 15 2015 11:44:31	  start_lba=0005917179,    sec_num: 256    0.84% finished,    13.80 sec passed    7186.20 sec left
+
+Oct 15 2015 11:44:44	  start_lba=0006048251,    sec_num: 256    1.68% finished,    27.30 sec passed    7172.70 sec left
+
+Oct 15 2015 11:44:58	  start_lba=0006179323,    sec_num: 256    2.51% finished,    40.81 sec passed    7159.19 sec left
+
+Oct 15 2015 11:45:12	  start_lba=0006310395,    sec_num: 256    3.35% finished,    54.38 sec passed    7145.62 sec left
+
+Oct 15 2015 11:45:25	  start_lba=0006441467,    sec_num: 256    4.19% finished,    67.99 sec passed    7132.01 sec left
+
+Oct 15 2015 11:45:39	  start_lba=0006572539,    sec_num: 256    5.03% finished,    81.50 sec passed    7118.50 sec left
+
+Oct 15 2015 11:45:52	  start_lba=0006703611,    sec_num: 256    5.87% finished,    95.11 sec passed    7104.89 sec left
+
+Oct 15 2015 11:46:06	  start_lba=0006834683,    sec_num: 256    6.71% finished,    108.66 sec passed    7091.34 sec left
+
+Oct 15 2015 11:46:19	  start_lba=0006965755,    sec_num: 256    7.54% finished,    122.18 sec passed    7077.82 sec left
+
+Oct 15 2015 11:46:33	  start_lba=0007096827,    sec_num: 256    8.38% finished,    135.64 sec passed    7064.36 sec left
+
+Oct 15 2015 11:46:46	  start_lba=0007227899,    sec_num: 256    9.22% finished,    149.07 sec passed    7050.93 sec left
+
+Oct 15 2015 11:47:00	  start_lba=0007358971,    sec_num: 256    10.06% finished,    162.50 sec passed    7037.50 sec left
+
+Oct 15 2015 11:47:13	  start_lba=0007490043,    sec_num: 256    10.90% finished,    175.92 sec passed    7024.08 sec left
+
+Oct 15 2015 11:47:27	  start_lba=0007621115,    sec_num: 256    11.74% finished,    189.35 sec passed    7010.65 sec left
+
+Oct 15 2015 11:47:40	  start_lba=0007752187,    sec_num: 256    12.57% finished,    202.85 sec passed    6997.15 sec left
+
+Oct 15 2015 11:47:54	  start_lba=0007883259,    sec_num: 256    13.41% finished,    216.43 sec passed    6983.57 sec left
+
+Oct 15 2015 11:48:07	  start_lba=0008014331,    sec_num: 256    14.25% finished,    229.99 sec passed    6970.01 sec left
+
+Oct 15 2015 11:48:21	  start_lba=0008145403,    sec_num: 256    15.09% finished,    243.65 sec passed    6956.35 sec left
+
+Oct 15 2015 11:48:34	  start_lba=0008276475,    sec_num: 256    15.93% finished,    257.16 sec passed    6942.84 sec left
+
+Oct 15 2015 11:48:48	  start_lba=0008407547,    sec_num: 256    16.77% finished,    270.68 sec passed    6929.32 sec left
+
+Oct 15 2015 11:49:01	  start_lba=0008538619,    sec_num: 256    17.60% finished,    284.20 sec passed    6915.80 sec left
+
+Oct 15 2015 11:49:15	  start_lba=0008669691,    sec_num: 256    18.44% finished,    297.72 sec passed    6902.28 sec left
+
+Oct 15 2015 11:49:28	  start_lba=0008800763,    sec_num: 256    19.28% finished,    311.23 sec passed    6888.77 sec left
+
+Oct 15 2015 11:49:42	  start_lba=0008931835,    sec_num: 256    20.12% finished,    324.65 sec passed    6875.35 sec left
+
+Oct 15 2015 11:49:55	  start_lba=0009062907,    sec_num: 256    20.96% finished,    338.07 sec passed    6861.93 sec left
+
+Oct 15 2015 11:50:09	  start_lba=0009193979,    sec_num: 256    21.80% finished,    351.49 sec passed    6848.51 sec left
+
+Oct 15 2015 11:50:22	  start_lba=0009325051,    sec_num: 256    22.63% finished,    364.96 sec passed    6835.04 sec left
+
+Oct 15 2015 11:50:36	  start_lba=0009456123,    sec_num: 256    23.47% finished,    378.46 sec passed    6821.54 sec left
+
+Oct 15 2015 11:50:49	  start_lba=0009587195,    sec_num: 256    24.31% finished,    391.98 sec passed    6808.02 sec left
+
+Oct 15 2015 11:51:03	  start_lba=0009718267,    sec_num: 256    25.15% finished,    405.50 sec passed    6794.50 sec left
+
+Oct 15 2015 11:51:16	  start_lba=0009849339,    sec_num: 256    25.99% finished,    419.02 sec passed    6780.98 sec left
+
+Oct 15 2015 11:51:30	  start_lba=0009980411,    sec_num: 256    26.83% finished,    432.52 sec passed    6767.48 sec left
+
+Oct 15 2015 11:51:43	  start_lba=0010111483,    sec_num: 256    27.66% finished,    446.01 sec passed    6753.99 sec left
+
+Oct 15 2015 11:51:57	  start_lba=0010242555,    sec_num: 256    28.50% finished,    459.53 sec passed    6740.47 sec left
+
+Oct 15 2015 11:52:10	  start_lba=0010373627,    sec_num: 256    29.34% finished,    473.08 sec passed    6726.92 sec left
+
+Oct 15 2015 11:52:24	  start_lba=0010504699,    sec_num: 256    30.18% finished,    486.59 sec passed    6713.41 sec left
+
+Oct 15 2015 11:52:37	  start_lba=0010635771,    sec_num: 256    31.02% finished,    500.06 sec passed    6699.94 sec left
+
+Oct 15 2015 11:52:51	  start_lba=0010766843,    sec_num: 256    31.86% finished,    513.50 sec passed    6686.50 sec left
+
+Oct 15 2015 11:53:04	  start_lba=0010897915,    sec_num: 256    32.69% finished,    526.93 sec passed    6673.07 sec left
+
+Oct 15 2015 11:53:18	  start_lba=0011028987,    sec_num: 256    33.53% finished,    540.46 sec passed    6659.54 sec left
+
+Oct 15 2015 11:53:31	  start_lba=0011160059,    sec_num: 256    34.37% finished,    553.90 sec passed    6646.10 sec left
+
+Oct 15 2015 11:53:45	  start_lba=0011291131,    sec_num: 256    35.21% finished,    567.41 sec passed    6632.59 sec left
+
+Oct 15 2015 11:53:58	  start_lba=0011422203,    sec_num: 256    36.05% finished,    580.89 sec passed    6619.11 sec left
+
+Oct 15 2015 11:54:12	  start_lba=0011553275,    sec_num: 256    36.89% finished,    594.37 sec passed    6605.63 sec left
+
+Oct 15 2015 11:54:25	  start_lba=0011684347,    sec_num: 256    37.72% finished,    607.85 sec passed    6592.15 sec left
+
+Oct 15 2015 11:54:38	  start_lba=0011815419,    sec_num: 256    38.56% finished,    621.30 sec passed    6578.70 sec left
+
+Oct 15 2015 11:54:52	  start_lba=0011946491,    sec_num: 256    39.40% finished,    634.77 sec passed    6565.23 sec left
+
+Oct 15 2015 11:55:05	  start_lba=0012077563,    sec_num: 256    40.24% finished,    648.24 sec passed    6551.76 sec left
+
+Oct 15 2015 11:55:19	  start_lba=0012208635,    sec_num: 256    41.08% finished,    661.71 sec passed    6538.29 sec left
+
+Oct 15 2015 11:55:32	  start_lba=0012339707,    sec_num: 256    41.92% finished,    675.25 sec passed    6524.75 sec left
+
+Oct 15 2015 11:55:46	  start_lba=0012470779,    sec_num: 256    42.75% finished,    688.71 sec passed    6511.29 sec left
+
+Oct 15 2015 11:55:59	  start_lba=0012601851,    sec_num: 256    43.59% finished,    702.18 sec passed    6497.82 sec left
+
+Oct 15 2015 11:56:13	  start_lba=0012732923,    sec_num: 256    44.43% finished,    715.67 sec passed    6484.33 sec left
+
+Oct 15 2015 11:56:26	  start_lba=0012863995,    sec_num: 256    45.27% finished,    729.09 sec passed    6470.91 sec left
+
+Oct 15 2015 11:56:40	  start_lba=0012995067,    sec_num: 256    46.11% finished,    742.52 sec passed    6457.48 sec left
+
+Oct 15 2015 11:56:53	  start_lba=0013126139,    sec_num: 256    46.95% finished,    755.99 sec passed    6444.02 sec left
+
+Oct 15 2015 11:57:07	  start_lba=0013257211,    sec_num: 256    47.78% finished,    769.45 sec passed    6430.55 sec left
+
+Oct 15 2015 11:57:20	  start_lba=0013388283,    sec_num: 256    48.62% finished,    782.89 sec passed    6417.11 sec left
+
+Oct 15 2015 11:57:34	  start_lba=0013519355,    sec_num: 256    49.46% finished,    796.38 sec passed    6403.62 sec left
+
+Oct 15 2015 11:57:47	  start_lba=0013650427,    sec_num: 256    50.30% finished,    809.91 sec passed    6390.09 sec left
+
+Oct 15 2015 11:58:01	  start_lba=0013781499,    sec_num: 256    51.14% finished,    823.46 sec passed    6376.54 sec left
+
+Oct 15 2015 11:58:14	  start_lba=0013912571,    sec_num: 256    51.98% finished,    836.97 sec passed    6363.03 sec left
+
+Oct 15 2015 11:58:28	  start_lba=0014043643,    sec_num: 256    52.81% finished,    850.58 sec passed    6349.42 sec left
+
+Oct 15 2015 11:58:41	  start_lba=0014174715,    sec_num: 256    53.65% finished,    864.08 sec passed    6335.92 sec left
+
+Oct 15 2015 11:58:55	  start_lba=0014305787,    sec_num: 256    54.49% finished,    877.53 sec passed    6322.47 sec left
+
+Oct 15 2015 11:59:08	  start_lba=0014436859,    sec_num: 256    55.33% finished,    890.97 sec passed    6309.03 sec left
+
+Oct 15 2015 11:59:22	  start_lba=0014567931,    sec_num: 256    56.17% finished,    904.41 sec passed    6295.59 sec left
+
+Oct 15 2015 11:59:35	  start_lba=0014699003,    sec_num: 256    57.01% finished,    917.86 sec passed    6282.15 sec left
+
+Oct 15 2015 11:59:48	  start_lba=0014830075,    sec_num: 256    57.84% finished,    931.31 sec passed    6268.69 sec left
+
+Oct 15 2015 12:00:02	  start_lba=0014961147,    sec_num: 256    58.68% finished,    944.75 sec passed    6255.25 sec left
+
+Oct 15 2015 12:00:15	  start_lba=0015092219,    sec_num: 256    59.52% finished,    958.19 sec passed    6241.81 sec left
+
+Oct 15 2015 12:00:29	  start_lba=0015223291,    sec_num: 256    60.36% finished,    971.69 sec passed    6228.31 sec left
+
+Oct 15 2015 12:00:42	  start_lba=0015354363,    sec_num: 256    61.20% finished,    985.19 sec passed    6214.81 sec left
+
+Oct 15 2015 12:00:56	  start_lba=0015485435,    sec_num: 256    62.04% finished,    998.71 sec passed    6201.29 sec left
+
+Oct 15 2015 12:01:09	  start_lba=0015616507,    sec_num: 256    62.87% finished,    1012.20 sec passed    6187.80 sec left
+
+Oct 15 2015 12:01:23	  start_lba=0015747579,    sec_num: 256    63.71% finished,    1025.73 sec passed    6174.27 sec left
+
+Oct 15 2015 12:01:36	  start_lba=0015878651,    sec_num: 256    64.55% finished,    1039.23 sec passed    6160.77 sec left
+
+Oct 15 2015 12:01:50	  start_lba=0016009723,    sec_num: 256    65.39% finished,    1052.66 sec passed    6147.34 sec left
+
+Oct 15 2015 12:02:03	  start_lba=0016140795,    sec_num: 256    66.23% finished,    1066.08 sec passed    6133.92 sec left
+
+Oct 15 2015 12:02:17	  start_lba=0016271867,    sec_num: 256    67.07% finished,    1079.53 sec passed    6120.47 sec left
+
+Oct 15 2015 12:02:30	  start_lba=0016402939,    sec_num: 256    67.90% finished,    1092.96 sec passed    6107.04 sec left
+
+Oct 15 2015 12:02:44	  start_lba=0016534011,    sec_num: 256    68.74% finished,    1106.43 sec passed    6093.57 sec left
+
+Oct 15 2015 12:02:57	  start_lba=0016665083,    sec_num: 256    69.58% finished,    1119.90 sec passed    6080.10 sec left
+
+Oct 15 2015 12:03:11	  start_lba=0016796155,    sec_num: 256    70.42% finished,    1133.38 sec passed    6066.62 sec left
+
+Oct 15 2015 12:03:24	  start_lba=0016927227,    sec_num: 256    71.26% finished,    1146.81 sec passed    6053.19 sec left
+
+Oct 15 2015 12:03:37	  start_lba=0017058299,    sec_num: 256    72.10% finished,    1160.26 sec passed    6039.74 sec left
+
+Oct 15 2015 12:03:51	  start_lba=0017189371,    sec_num: 256    72.93% finished,    1173.75 sec passed    6026.25 sec left
+
+Oct 15 2015 12:04:04	  start_lba=0017320443,    sec_num: 256    73.77% finished,    1187.22 sec passed    6012.78 sec left
+
+Oct 15 2015 12:04:18	  start_lba=0017451515,    sec_num: 256    74.61% finished,    1200.68 sec passed    5999.32 sec left
+
+Oct 15 2015 12:04:31	  start_lba=0017582587,    sec_num: 256    75.45% finished,    1214.12 sec passed    5985.88 sec left
+
+Oct 15 2015 12:04:45	  start_lba=0017713659,    sec_num: 256    76.29% finished,    1227.58 sec passed    5972.42 sec left
+
+Oct 15 2015 12:04:58	  start_lba=0017844731,    sec_num: 256    77.13% finished,    1241.01 sec passed    5958.99 sec left
+
+Oct 15 2015 12:05:12	  start_lba=0017975803,    sec_num: 256    77.96% finished,    1254.44 sec passed    5945.56 sec left
+
+Oct 15 2015 12:05:25	  start_lba=0018106875,    sec_num: 256    78.80% finished,    1267.87 sec passed    5932.13 sec left
+
+Oct 15 2015 12:05:38	  start_lba=0018237947,    sec_num: 256    79.64% finished,    1281.29 sec passed    5918.71 sec left
+
+Oct 15 2015 12:05:52	  start_lba=0018369019,    sec_num: 256    80.48% finished,    1294.74 sec passed    5905.26 sec left
+
+Oct 15 2015 12:06:05	  start_lba=0018500091,    sec_num: 256    81.32% finished,    1308.16 sec passed    5891.84 sec left
+
+Oct 15 2015 12:06:32	  start_lba=0018631163,    sec_num: 256    82.16% finished,    1335.28 sec passed    5864.72 sec left
+
+Oct 15 2015 12:06:46	  start_lba=0018762235,    sec_num: 256    82.99% finished,    1348.71 sec passed    5851.29 sec left
+
+Oct 15 2015 12:06:59	  start_lba=0018893307,    sec_num: 256    83.83% finished,    1362.14 sec passed    5837.86 sec left
+
+Oct 15 2015 12:07:13	  start_lba=0019024379,    sec_num: 256    84.67% finished,    1375.58 sec passed    5824.43 sec left
+
+Oct 15 2015 12:07:26	  start_lba=0019155451,    sec_num: 256    85.51% finished,    1389.01 sec passed    5810.99 sec left
+
+Oct 15 2015 12:07:40	  start_lba=0019286523,    sec_num: 256    86.35% finished,    1402.46 sec passed    5797.54 sec left
+
+Oct 15 2015 12:07:53	  start_lba=0019417595,    sec_num: 256    87.19% finished,    1415.96 sec passed    5784.04 sec left
+
+Oct 15 2015 12:08:07	  start_lba=0019548667,    sec_num: 256    88.02% finished,    1429.40 sec passed    5770.60 sec left
+
+Oct 15 2015 12:08:20	  start_lba=0019679739,    sec_num: 256    88.86% finished,    1442.87 sec passed    5757.13 sec left
+
+Oct 15 2015 12:08:34	  start_lba=0019810811,    sec_num: 256    89.70% finished,    1456.36 sec passed    5743.64 sec left
+
+Oct 15 2015 12:08:47	  start_lba=0019941883,    sec_num: 256    90.54% finished,    1469.90 sec passed    5730.10 sec left
+
+Oct 15 2015 12:09:01	  start_lba=0020072955,    sec_num: 256    91.38% finished,    1483.37 sec passed    5716.63 sec left
+
+Oct 15 2015 12:09:14	  start_lba=0020204027,    sec_num: 256    92.22% finished,    1496.84 sec passed    5703.16 sec left
+
+Oct 15 2015 12:09:27	  start_lba=0020335099,    sec_num: 256    93.05% finished,    1510.30 sec passed    5689.70 sec left
+
+Oct 15 2015 12:09:41	  start_lba=0020466171,    sec_num: 256    93.89% finished,    1523.85 sec passed    5676.15 sec left
+
+Oct 15 2015 12:09:55	  start_lba=0020597243,    sec_num: 256    94.73% finished,    1537.35 sec passed    5662.65 sec left
+
+Oct 15 2015 12:10:08	  start_lba=0020728315,    sec_num: 256    95.57% finished,    1550.84 sec passed    5649.16 sec left
+
+Oct 15 2015 12:10:21	  start_lba=0020859387,    sec_num: 256    96.41% finished,    1564.33 sec passed    5635.67 sec left
+
+Oct 15 2015 12:10:35	  start_lba=0020990459,    sec_num: 256    97.25% finished,    1577.81 sec passed    5622.19 sec left
+
+Oct 15 2015 12:10:48	  start_lba=0021121531,    sec_num: 256    98.08% finished,    1591.34 sec passed    5608.66 sec left
+
+Oct 15 2015 12:11:02	  start_lba=0021252603,    sec_num: 256    98.92% finished,    1604.85 sec passed    5595.15 sec left
+
+Oct 15 2015 12:11:15	  start_lba=0021383675,    sec_num: 256    99.76% finished,    1618.32 sec passed    5581.68 sec left
+
+Oct 15 2015 12:11:29	  start_lba=0021421192,    sec_num: 256    100.00% finished,    1631.41 sec passed    5568.59 sec left
+
+Oct 15 2015 12:11:29	 ASYNC semi_Sequential zone_start:5786107,	zone_end:21421192,	zone_size:15635085,	zone_wr_size:256,	zone_loop:	0	q_num:8	q_depth:512
+Oct 15 2015 12:11:42	  start_lba=0006048251,    sec_num: 256    1.68% finished,    1645.03 sec passed    5554.97 sec left
+
+Oct 15 2015 12:11:56	  start_lba=0006310395,    sec_num: 256    3.35% finished,    1658.61 sec passed    5541.39 sec left
+
+Oct 15 2015 12:12:09	  start_lba=0006572539,    sec_num: 256    5.03% finished,    1672.18 sec passed    5527.82 sec left
+
+Oct 15 2015 12:12:23	  start_lba=0006834683,    sec_num: 256    6.71% finished,    1685.76 sec passed    5514.24 sec left
+
+Oct 15 2015 12:12:36	  start_lba=0007096827,    sec_num: 256    8.38% finished,    1699.34 sec passed    5500.66 sec left
+
+Oct 15 2015 12:12:50	  start_lba=0007358971,    sec_num: 256    10.06% finished,    1712.92 sec passed    5487.08 sec left
+
+Oct 15 2015 12:13:04	  start_lba=0007621115,    sec_num: 256    11.74% finished,    1726.52 sec passed    5473.48 sec left
+
+Oct 15 2015 12:13:17	  start_lba=0007883259,    sec_num: 256    13.41% finished,    1740.18 sec passed    5459.82 sec left
+
+Oct 15 2015 12:13:31	  start_lba=0008145403,    sec_num: 256    15.09% finished,    1753.85 sec passed    5446.15 sec left
+
+Oct 15 2015 12:13:45	  start_lba=0008407547,    sec_num: 256    16.77% finished,    1767.57 sec passed    5432.43 sec left
+
+Oct 15 2015 12:13:58	  start_lba=0008669691,    sec_num: 256    18.44% finished,    1781.34 sec passed    5418.66 sec left
+
+Oct 15 2015 12:14:12	  start_lba=0008931835,    sec_num: 256    20.12% finished,    1795.13 sec passed    5404.87 sec left
+
+Oct 15 2015 12:14:26	  start_lba=0009193979,    sec_num: 256    21.80% finished,    1808.80 sec passed    5391.20 sec left
+
+Oct 15 2015 12:14:40	  start_lba=0009456123,    sec_num: 256    23.47% finished,    1822.47 sec passed    5377.53 sec left
+
+Oct 15 2015 12:14:53	  start_lba=0009718267,    sec_num: 256    25.15% finished,    1836.14 sec passed    5363.86 sec left
+
+Oct 15 2015 12:15:07	  start_lba=0009980411,    sec_num: 256    26.83% finished,    1849.82 sec passed    5350.18 sec left
+
+Oct 15 2015 12:15:21	  start_lba=0010242555,    sec_num: 256    28.50% finished,    1863.57 sec passed    5336.43 sec left
+
+Oct 15 2015 12:15:34	  start_lba=0010504699,    sec_num: 256    30.18% finished,    1877.24 sec passed    5322.76 sec left
+
+Oct 15 2015 12:15:48	  start_lba=0010766843,    sec_num: 256    31.86% finished,    1890.95 sec passed    5309.05 sec left
+
+Oct 15 2015 12:16:02	  start_lba=0011028987,    sec_num: 256    33.53% finished,    1904.62 sec passed    5295.38 sec left
+
+Oct 15 2015 12:16:16	  start_lba=0011291131,    sec_num: 256    35.21% finished,    1918.37 sec passed    5281.64 sec left
+
+Oct 15 2015 12:16:29	  start_lba=0011553275,    sec_num: 256    36.89% finished,    1932.06 sec passed    5267.94 sec left
+
+Oct 15 2015 12:16:43	  start_lba=0011815419,    sec_num: 256    38.56% finished,    1945.73 sec passed    5254.27 sec left
+
+Oct 15 2015 12:16:57	  start_lba=0012077563,    sec_num: 256    40.24% finished,    1959.43 sec passed    5240.57 sec left
+
+Oct 15 2015 12:17:10	  start_lba=0012339707,    sec_num: 256    41.92% finished,    1973.09 sec passed    5226.91 sec left
+
+Oct 15 2015 12:17:24	  start_lba=0012601851,    sec_num: 256    43.59% finished,    1986.80 sec passed    5213.20 sec left
+
+Oct 15 2015 12:17:38	  start_lba=0012863995,    sec_num: 256    45.27% finished,    2000.50 sec passed    5199.50 sec left
+
+Oct 15 2015 12:17:51	  start_lba=0013126139,    sec_num: 256    46.95% finished,    2014.20 sec passed    5185.80 sec left
+
+Oct 15 2015 12:18:05	  start_lba=0013388283,    sec_num: 256    48.62% finished,    2027.90 sec passed    5172.10 sec left
+
+Oct 15 2015 12:18:19	  start_lba=0013650427,    sec_num: 256    50.30% finished,    2041.59 sec passed    5158.41 sec left
+
+Oct 15 2015 12:18:32	  start_lba=0013912571,    sec_num: 256    51.98% finished,    2055.28 sec passed    5144.72 sec left
+
+Oct 15 2015 12:18:46	  start_lba=0014174715,    sec_num: 256    53.65% finished,    2068.95 sec passed    5131.05 sec left
+

@@ -1,0 +1,446 @@
+var partition = require('../core_lib/c_zone.jclib')
+var test = require('./select_ascmethod.jctem')
+var testlogs = require('../core_lib/c_logs.jclib')
+var interface  = require('../core_lib/access/cmd_interface.js')
+var PRNG = require('prng')
+var ACSM_NUM = 9
+var timelimit = 1
+var start = Date.now()
+var ini = require('multilevel-ini');
+var fs = require('fs');
+var shell = require('shelljs')
+var moment = require("moment");
+var sprintf = require("sprintf-js").sprintf
+//==================default config value===================
+var region_type ='seq'
+var region_num = 10
+var zone_typ = 'ran_zone' 	
+var z_offset =0
+var z_size	= 0
+var z_num = 0
+var wr_size = '4k' 
+var reg_id = 0
+var acsmethd = 'mix'
+var q_num = 8
+var q_depth = 512
+var ismulti  = true
+var clr_his  = true
+var hist_path = ''
+var time_passed
+var ASCMETH_COUNT = 4
+var acsmethd_grp =[]
+/*var raseed = Number(Date.now())%0xffff
+seed(raseed)*/
+
+var Zone = ''
+function get_config(result)
+{
+	if(result){
+        
+        rseed=result['core']['pattern']['random_seed']
+		region_type = (result['core']['region']['type']) 
+		region_num = Number(result['core']['region']['num']) 
+		zone_typ = (result['core']['zone']['type']) 	
+		z_offset = Number(result['core']['zone']['offset']) 	
+		z_size	= Number(result['core']['zone']['size']) 	
+		z_num = Number(result['core']['zone']['num'])  
+		wr_size = (result['core']['zone']['wr_size']) 
+		reg_id = Number(result['core']['zone']['reg_id']) 
+		//zone_id = Number(result['core']['zone']['zone_id']) 
+		acsmethd =  (result['core']['zone']['acsmethd']) 
+		timelimit= Number(result['test']['timelimit']) 
+		//q_num = Number(result['test']['q_num']) 
+		//q_depth = Number(result['test']['q_depth'])
+		//ismulti  = result['test']['ismulti']
+		clr_his  = result['test']['clr_his']
+		Zone = result['test']['Zone']
+		console.log(result)
+	}	
+	writesize= wr_size
+}
+
+function set_history(history_path)
+{
+	hist_path = history_path;
+	if (clr_his == 'true'|| clr_his == 'yes')
+	{
+		var comm_str = 'rm -f  ' + hist_path + '*.*'
+		shell.exec(comm_str)
+		info('rm command recieved')
+	}
+	else if (clr_his == 'false'|| clr_his == 'no')
+	{
+		info('please do not rm history')
+	}
+}
+
+function test_start(){
+
+	var ret = -1;
+	testlogs.clear_info();
+	testlogs.log_sys_info()
+	testlogs.log_driver_info()
+	testlogs.log_dut_info()
+	testlogs.log_script_info(timelimit,rseed)
+
+	interface.set_timespec(timelimit)
+	partition.set_regions(region_type,region_num)
+
+timeout:
+	while(1)
+	{
+		if(Zone =='overlap'){
+
+			var region1 = Math.floor(Math.random()*region_num+1) 
+			var region2 
+			if (region1 == 0)
+			{
+				region2= 1
+			}	
+			else if(region1 == region_num)
+			{
+				region2= region1 - 1
+			}
+			else
+			{
+				region2= region1 + 1
+			}
+			zone=[]
+			//	region=[]
+			partition.set_zones(zone_typ,z_offset,z_size,z_num,wr_size,region1)
+			partition.set_zones(zone_typ,z_offset,z_size,z_num,wr_size,region2)		
+
+			if (acsmethd=='mix'||acsmethd==0){
+
+				info('===============overlap region mix method=================='+acsmethd)
+
+			 	for (var i=0;i< z_num;i++){
+                    
+                    var raseed = Number(Date.now())%0xffff
+                    seed(raseed)
+                    var acsmethd_test = rand(1,ACSM_NUM)
+			 		ret = test.selectMethod(acsmethd_test,z_num+i)
+			 
+			 		if(ret) return ret
+			 		var time_passed = (Date.now() - start) / 1000
+				 	if (time_passed > timelimit*3600) 
+				 	{
+			 			send_msg = "time is up ,time_passed:"+time_passed +" sec"
+			 			info( 'msg:' + send_msg  )
+			 			break timeout;
+				 	}
+			 		ret = test.selectMethod(acsmethd_test,z_num-1-i)
+			 		if(ret) return ret
+			 		var time_passed = (Date.now() - start) / 1000
+				 	if (time_passed > timelimit*3600) {
+			 			send_msg = "time is up ,time_passed:"+time_passed +" sec"
+			 			info( 'msg:' + send_msg  )
+			 			break timeout;
+				 	}	
+			 	}
+		 	}
+		 	else if (acsmethd == 'all') {
+		 		info('=================overlap region all method==================')
+
+		 		for (var i=0; i< z_num; i++){
+
+		 			for(var j = 1; j<= ACSM_NUM; j++)
+					{
+						ret = test.selectMethod(j,z_num+i)
+			 			if(ret) return ret
+			 			var time_passed = (Date.now() - start) / 1000
+					 	if (time_passed > timelimit*3600) {
+
+				 			send_msg = "time is up ,time_passed:"+time_passed +" sec"
+				 			info( 'msg:' + send_msg  )
+				 			break timeout;
+					 	}
+			 			ret = test.selectMethod(j,z_num-1-i)
+			 			if(ret) return ret
+			 			time_passed = (Date.now() - start) / 1000
+					 	if (time_passed > timelimit*3600) {
+
+				 			send_msg = "time is up ,time_passed:"+time_passed +" sec"
+				 			info( 'msg:' + send_msg  )
+				 			break timeout;
+					 	}
+					}	
+					
+			 	}
+		 	}
+		 	else if(acsmethd == 'grp')
+		 	{
+		 		info('=================overlap region group method==================')
+		 		for (var i=0;i< ASCMETH_COUNT;i++)
+		 		{	
+		 		    var raseed = Number(Date.now())%0xffff
+					seed(raseed)	 		
+					acsmethd_grp[i] = rand(1,ACSM_NUM)
+		 		}
+		 		
+		 		for (var i=0;i< z_num;i++){
+
+                    for(var j=0;j<ASCMETH_COUNT;j++){
+
+	                   	var acsmethd_test =  acsmethd_grp[j];	
+				        //test.Sequential_async(zone[i].offset,zone[i].offset + zone[i].size ,zone[i].size,zone[i].writesize,0,8,1024)
+				 		ret = test.selectMethod(acsmethd_test,z_num+i)
+				 		if(ret) return ret
+				 		var time_passed = (Date.now() - start) / 1000
+					 	if (time_passed > timelimit*3600) 
+					 	{
+				 			send_msg = "time is up ,time_passed:"+time_passed +" sec"
+				 			info( 'msg:' + send_msg  )
+				 			break timeout;
+					 	}
+				 		ret = test.selectMethod(acsmethd_test,z_num-1-i)
+				 		if(ret) return ret
+				 		var time_passed = (Date.now() - start) / 1000
+					 	if (time_passed > timelimit*3600) {
+				 			send_msg = "time is up ,time_passed:"+time_passed +" sec"
+				 			info( 'msg:' + send_msg  )
+				 			break timeout;
+					 	}	
+                    }
+	
+			 	}
+
+		 	}
+
+		}
+		else if(Zone =='fulldisk')
+		{
+			partition.set_zones(zone_typ,z_offset,z_size,z_num,wr_size,reg_id)
+
+			if (acsmethd=='mix'||acsmethd==0){
+
+				info('===============fulldisk random method=================='+acsmethd)
+			
+			 	for (var i=0;i< ACSM_NUM;i++){
+	             		
+	             	var raseed = Number(Date.now())%0xffff
+					seed(raseed)		 
+					var acsmethd_test = rand(1,ACSM_NUM) 
+			        //test.Sequential_async(zone[i].offset,zone[i].offset + zone[i].size ,zone[i].size,zone[i].writesize,0,8,1024)
+			 		ret = test.selectMethod(acsmethd_test,0)
+			 		if(ret) return ret
+			 		var time_passed = (Date.now() - start) / 1000
+				 	if (time_passed > timelimit*3600) {
+			 			send_msg = "time is up ,time_passed:"+time_passed +" sec"
+			 			info( 'msg:' + send_msg  )
+			 			break timeout;
+				 	}
+			 	}
+		 	}
+		 	else if (acsmethd == 'all') {
+		 		info('=================fulldisk all method==================')
+
+		 		for (var i=0;i< ACSM_NUM;i++){
+						
+			        //test.Sequential_async(zone[i].offset,zone[i].offset + zone[i].size ,zone[i].size,zone[i].writesize,0,8,1024)
+			 		ret = test.selectMethod((i)%ACSM_NUM+1,0)
+			 		if(ret) return ret
+			 		//test.selectMethod(zone[0],18,q_num,q_depth)
+			 		var time_passed = (Date.now() - start) / 1000
+				 	if (time_passed > timelimit*3600) {
+
+			 			send_msg = "time is up ,time_passed:"+time_passed +" sec"
+			 			info( 'msg:' + send_msg  )
+			 			break timeout;
+				 	}
+			 	
+			 	}
+		 	}
+		 	else if(acsmethd == 'grp'){
+		 		info('=================fulldisk group method==================')
+		 		for (var i=0;i< ASCMETH_COUNT;i++)
+			 		{
+			 			var raseed = Number(Date.now())%0xffff
+						seed(raseed)
+						acsmethd_grp[i] =rand(1,ACSM_NUM) 
+			 		}
+		 		for(var i = 0;i<ASCMETH_COUNT;i++){
+		 			ret = test.selectMethod(acsmethd_grp[i],0)
+		 			if(ret) return ret
+		 		    var time_passed = (Date.now() - start) / 1000
+				 	if (time_passed > timelimit*3600) {
+
+			 			send_msg = "time is up ,time_passed:"+time_passed +" sec"
+			 			info( 'msg:' + send_msg  )
+			 			break timeout;
+				 	}
+		 		}
+		 	}
+		}
+		else if(Zone =='random')
+		{
+			zone=[]
+			partition.set_zones(zone_typ,z_offset,z_size,z_num,wr_size,reg_id)
+
+			if (acsmethd=='mix'||acsmethd==0){
+
+				info('===============random Zone random method=================='+acsmethd)
+			
+			 	for (var i=0;i< ACSM_NUM;i++){
+                    
+                    var raseed = Number(Date.now())%0xffff
+					seed(raseed)
+					var acsmethd_test =  rand(1,ACSM_NUM)
+								      
+			 		ret = test.selectMethod(acsmethd_test,0)
+			 		if(ret) return ret
+			 		//var str_time = moment().format("HH:mm:ss") 	
+			 		//info('###################'+str_time+sprintf('acsmethd_test:%d finished',acsmethd_test)+'###################\n')
+			 		var time_passed = (Date.now() - start) / 1000
+				 	if (time_passed > timelimit*3600) {
+
+			 			send_msg = "time is up ,time_passed:"+time_passed +" sec"
+			 			info( 'msg:' + send_msg  )
+			 			break timeout;
+				 	}
+			 	}
+		 	}
+		 	else if (acsmethd == 'all') {
+		 		info('=================random Zone all method==================')
+
+		 		for (var i=0;i< ACSM_NUM;i++){
+									       
+			 		ret = test.selectMethod((i)%ACSM_NUM+1,0)
+			 		if(ret) return ret
+			 		
+			 		var time_passed = (Date.now() - start) / 1000
+				 	if (time_passed > timelimit*3600) {
+
+			 			send_msg = "time is up ,time_passed:"+time_passed +" sec"
+			 			info( 'msg:' + send_msg  )
+			 			break timeout;
+				 	}			 	
+			 	}
+		 	}
+		 	else if(acsmethd == 'grp'){
+		 		info('=================random Zone group method==================')
+		 			for (var i=0;i< ASCMETH_COUNT;i++)
+			 		{
+			 			var raseed = Number(Date.now())%0xffff
+						seed(raseed)
+						acsmethd_grp[i] = rand(1,ACSM_NUM) 
+			 		}
+			 	    for (var i=0;i< ASCMETH_COUNT;i++){
+						
+				 		ret = test.selectMethod(acsmethd_grp[i],0)
+				 		if(ret) return ret
+				 		var time_passed = (Date.now() - start) / 1000
+					 	if (time_passed > timelimit*3600) {
+
+				 			send_msg = "time is up ,time_passed:"+time_passed +" sec"
+				 			info( 'msg:' + send_msg  )
+				 			break timeout;
+					 	}			 	
+			 	    }
+		 	}
+
+		}
+		else if(Zone =='no_overlap')
+		{			
+			zone=[]
+			if (acsmethd=='mix'||acsmethd==0){
+
+				info('===============no-overlap Zone random method=================='+acsmethd)
+			
+			 	for (var i=0;i< ACSM_NUM;i++){
+
+                    var raseed = Number(Date.now())%0xffff
+                    seed(raseed)
+                  
+					var acsmethd_test =  rand(1,ACSM_NUM) 
+
+					var region_id = rand(1,region_num) 
+					
+					partition.set_zones(zone_typ,z_offset,z_size,z_num,wr_size,region_id)
+			        //test.Sequential_async(zone[i].offset,zone[i].offset + zone[i].size ,zone[i].size,zone[i].writesize,0,8,1024)
+			        for(var i = 0;i<z_num;i++){
+			        	ret = test.selectMethod(acsmethd_test,i)
+			        	if(ret) return ret
+				        var time_passed = (Date.now() - start) / 1000
+					 	if (time_passed > timelimit*3600) {
+
+				 			send_msg = "time is up ,time_passed:"+time_passed +" sec"
+				 			info( 'msg:' + send_msg  )
+				 			break timeout;
+					 	}
+			        }
+			 		
+			 	}
+		 	}
+		 	else if (acsmethd == 'all') {
+		 		info('=================no-overlap Zone all method==================')
+
+		 		for (var i=0;i< ACSM_NUM;i++){
+
+                    var raseed = Number(Date.now())%0xffff
+                    seed(raseed)
+					var region_id = rand(1,region_num) 
+	                partition.set_zones(zone_typ,z_offset,z_size,z_num,wr_size,region_id)
+	                for(var i = 0 ;i<z_num;i++){
+	                	for (var j = 0;j<ACSM_NUM;j++){
+	                		ret = test.selectMethod(j+1,i)
+	                		if(ret) return ret
+			                var time_passed = (Date.now() - start) / 1000
+						 	if (time_passed > timelimit*3600) {
+
+					 			send_msg = "time is up ,time_passed:"+time_passed +" sec"
+					 			info( 'msg:' + send_msg  )
+					 			break timeout;
+						 	}
+	                	}
+	                }			 	
+			 	}
+		 	}
+		 	else if(acsmethd == 'grp'){
+		 		info('=================no-overlap Zone group method==================')
+	 			for (var i=0;i< ASCMETH_COUNT;i++)
+		 		{
+		 			var raseed = Number(Date.now())%0xffff
+					seed(raseed)
+					acsmethd_grp[i] = rand(1,ACSM_NUM) 
+		 		}
+                
+                var raseed = Number(Date.now())%0xffff
+				seed(raseed)
+				var region_id = rand(1,region_num) 
+                partition.set_zones(zone_typ,z_offset,z_size,z_num,wr_size,region_id)
+                for(var j = 0 ;j<z_num;j++){
+                	for (var i = 0;i<ASCMETH_COUNT;i++){
+                		ret = test.selectMethod(acsmethd_grp[i],j)
+                		if(ret) return ret
+		                var time_passed = (Date.now() - start) / 1000
+					 	if (time_passed > timelimit*3600) {
+
+				 			send_msg = "time is up ,time_passed:"+time_passed +" sec"
+				 			info( 'msg:' + send_msg  )
+				 			break timeout;
+					 	}
+                	}
+                }
+			 					 	
+		 	}
+
+		}
+		else
+		{
+			info('else onelap Zone ='+Zone)
+		}
+
+	 	var time_passed = (Date.now() - start) / 1000
+	 	if (time_passed > timelimit*3600) {
+ 			send_msg = "time is up ,time_passed:"+time_passed +" sec"
+ 			info( 'msg:' + send_msg  )
+ 			break;
+	 	}	
+	}
+	 return ret
+}
+
+exports.test_start = test_start
+exports.get_config = get_config
+exports.set_history = set_history

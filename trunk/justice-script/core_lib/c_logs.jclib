@@ -1,0 +1,508 @@
+var log = require('fs');
+var fmt = require('printf')
+var shell = require('shelljs')
+var iniat = require('../init/init.js')
+var os = require('os');
+var moment = require("moment");
+var shell = require('shelljs')
+
+var JUSTICE_VERSION = '00.00.00'
+var SECTOR_SIZE = 512
+var w_buff = get_write_buffer()
+var r_buff = get_read_buffer()
+var file_name='';
+function set_log_path(filename)
+{
+	file_name = filename
+}
+ 
+output_info = function (str) {
+	var curday=new Date(); 
+	var sdate = curday.toString()
+	
+	//log.appendFileSync('../info/info1.txt',sdate.substr(4,20)+"\t "+str)
+	log.appendFileSync(file_name,str)
+	
+}
+clear_info = function()
+{
+
+	log.writeFileSync(file_name,"");
+}
+log_sys_info = function () {
+	//var curday=new Date(); 
+	//var sdate = curday.toString()
+	//var ret=shell.exec(sudo arch)
+	var IPv4,hostName;
+	hostName=os.hostname();
+	var dev
+
+var ifaces = os.networkInterfaces();
+
+
+for ( dev in ifaces) {
+
+    if (dev.indexOf('eth0') != -1)
+    {
+        
+        break;
+    }
+    if (dev.indexOf('eth1') != -1)
+    {
+        
+        break;
+    }
+
+    if (dev.indexOf('eth2') != -1)
+    {
+        
+        break;
+    }
+    if (dev.indexOf('eth3') != -1)
+    {
+        
+        break;
+    }
+    if (dev.indexOf('eth4') != -1)
+    {
+        
+        break;
+    }
+    
+
+}
+
+ifaces[dev].forEach(function(details) {
+
+    if (details.family == 'IPv4') {
+
+    IPv4 = details.address;
+   
+        
+    }
+
+ });
+	var prnt_str = '------------------- System Infomation -------------------------------\n'
+
+	//log.appendFileSync('../info/info1.txt','System Name:'+"\t "+hostName+'\n'+'System IP:'+'\t'+IPv4+'\n')
+	output_info(prnt_str)
+
+	var ubuntu_ver = ''
+	var kernel_ver = ''
+	prnt_str = 'System Name: ' +  hostName +'\n'
+	output_info(prnt_str)
+	prnt_str = 'System IP: ' + IPv4 +'\n'
+	output_info(prnt_str)
+
+	if(log.existsSync('/proc/version')){
+
+		var data = log.readFileSync('/proc/version')
+		var temp_str=data.toString()
+		var len_str = temp_str.length
+
+		var pos1 = temp_str.search('Linux version')
+		var temp_str2= temp_str.substr(13,temp_str.length-13)
+		kernel_ver = temp_str2.match(/\S+/)
+	}
+	
+	if(log.existsSync('/etc/issue')){
+
+		data = log.readFileSync('/etc/issue')
+		temp_str=data.toString()
+		pos1 = temp_str.search('Linux version')
+		temp_str2 = temp_str.match(/\S+/g)
+		ubuntu_ver = temp_str2[0]+temp_str2[1]
+	
+	}
+	//var ret=shell.exec('sudo cat /etc/issue')
+	//var ret1=shell.exec('sudo cat /proc/version')
+	var ret2=shell.exec('sudo lspci |grep Non-Volatile')
+	prnt_str = 'HBA:'+'\t'+ret2.output.substr(39,40)
+	prnt_str= prnt_str+'Ubuntu version:'+"\t "+ubuntu_ver+'\n'
+	prnt_str= prnt_str+'Kernel version:'+"\t "+kernel_ver+'\n'
+
+	prnt_str= prnt_str+'JUSTICE version:'+"\t "+JUSTICE_VERSION+'\n'
+	prnt_str =  prnt_str+'---------------------------------------------------------------------\n\n'
+	output_info(prnt_str)
+    info(prnt_str)
+}
+log_driver_info = function(){
+
+	var prnt_str = '------------------- Driver Infomation -------------------------------\n'
+	output_info(prnt_str)
+	var ret = get_pci_link()
+	//info("pci link,cap speed:gen%d,cap width:%dx,current speed:gen%d,current width:%dx",
+	//	    ret[0],ret[1],ret[2],ret[3])
+	ret = get_driver_version()
+	if((ret&0x000000FF) == 0x0A)
+	  state = 'Alpha'
+	else if ((ret&0x000000FF) == 0x0B)
+	  state = 'Beta'
+	else 
+	  state = 'Release'
+	prnt_str = fmt("Driver Version:%d.%d.%d%s\n",ret>>24,(ret>>16)&0x00FF,(ret>>8)&0x0000FF,state)
+	//prnt_str = 'Version :\n'
+
+	prnt_str = prnt_str +"PCIE info:\n"
+
+	prnt_str = prnt_str +"Load driver successful!\n"
+
+	prnt_str =  prnt_str +'---------------------------------------------------------------------\n\n'
+	output_info(prnt_str)
+    info(prnt_str)
+
+}
+log_dut_info = function(){
+
+	var prnt_str = '------------------- DUT Infomation ----------------------------------\n'
+	output_info(prnt_str)
+	prnt_str = 'Model : '+iniat.Model+"\n"
+
+	prnt_str = prnt_str +"Serial No :"+iniat.Serial+"\n"
+
+	prnt_str = prnt_str +"Firmware :"+iniat.FirmWare+"\n"
+
+	prnt_str = prnt_str +"Capacity :"+iniat.capacity+"\n"
+
+	prnt_str = prnt_str +"Total LBA :"+iniat.total_lba+"\n"
+
+	prnt_str = prnt_str +"HBA :\n"
+
+	var ret = shell.exec('lspci | grep PCIx')
+	 //info(ret.code)
+	var strs= new Array(); 
+	strs=ret.output.split("\n"); 
+	var len = strs.length
+	//info(strs[len-2])
+	prnt_str =  prnt_str +'---------------------------------------------------------------------\n\n'
+	output_info(prnt_str)
+    info(prnt_str)
+}
+
+log_script_info = function(timelimit,seed){
+
+	var prnt_str = '------------------- Script Infomation -------------------------------\n'
+	output_info(prnt_str)
+
+	prnt_str = 'Vendor : Maxio-0042\n'
+
+	prnt_str = prnt_str +"Script Name :"+ process.argv[1]+ "\n"
+	start = moment()
+	prnt_str = prnt_str +"Date :" +moment().format("YYYY-MM-DD") + "\n"
+
+	prnt_str = prnt_str +"Time :"+moment().format("HH:mm:ss") + "\n"
+
+	prnt_str = prnt_str +"Expect Running Time : "+ timelimit + "\n"
+    prnt_str = prnt_str +"Random seed:" + seed +"\n"
+	prnt_str = prnt_str +"Test start ...\n"
+
+	prnt_str =  prnt_str +'---------------------------------------------------------------------\n\n'
+
+	output_info(prnt_str)
+    info(prnt_str)
+}
+
+log_end_info = function(start,ret,error_str ){
+
+	var prnt_str = '------------------- End Infomation ----------------------------------\n'
+	output_info(prnt_str)
+	prnt_str = 'Test end...\n'
+	if (ret == 0 || ret == 1){
+		prnt_str = prnt_str +"Result : PASS\n"
+	}
+	else{
+		prnt_str = prnt_str +"Result : Fail\n" + 'Error_Code:'+ ret +"\n"
+		if(ret == -5)
+			prnt_str = prnt_str + 'Error_Type: ScriptError\n' + error_str+"\n"
+		else if(ret  == -2)	
+			prnt_str = prnt_str + 'Error_Type: MisCompare\n' 
+		else if(ret  == -3)	
+			prnt_str = prnt_str + 'Error_Type: HWError\n'
+		else if(ret  == -4)	
+			prnt_str = prnt_str + 'Error_Type: DrvError\n'	
+	}
+	
+
+	var end =  moment();
+	prnt_str = prnt_str +"Date :" +moment().format("YYYY-MM-DD") + "\n"
+
+	prnt_str = prnt_str +"Time :"+moment().format("HH:mm:ss") + "\n"
+
+	var timepassed = Math.floor(moment(end -start)/1000)
+	var day_passed = Math.floor(timepassed/3600/24)
+	var res_second = timepassed - day_passed * 3600*24
+	var hour_passed = Math.floor(res_second/3600)
+	res_second = res_second - hour_passed*3600
+	var minute_passed = Math.floor(res_second/60)
+	res_second = res_second - minute_passed*60
+
+	prnt_str = prnt_str +"Elapsed Time: " + day_passed +' days '+hour_passed+' hours '+minute_passed+' minutes '+ res_second+" seconds " + "\n"
+
+	prnt_str =  prnt_str +'---------------------------------------------------------------------\n\n'
+	output_info(prnt_str)
+	info(prnt_str)
+	log_statistics(start)
+}
+
+log_error_info = function(status){
+
+	var prnt_str = '------------------- Error Infomation --------------------------------\n'
+	output_info(prnt_str)
+	var error_type 
+
+	if(status==1)
+		error_type="Invalid Command Opcode"		
+	else if(status==2)
+		error_type="Invalid Field in Command"
+	else if(status==3)
+		error_type="Command ID Conflict"
+	else if(status==4)
+		error_type="Data Transfer Error"
+	else if(status==5)
+		error_type="Commands Aborted due to Power Loss Notification"
+	else if(status==6)
+		error_type="Internal Error"
+	else if(status==7)
+		error_type="Command Abort Requested"
+	else if(status==8)
+		error_type="Command Aborted due to SQ Deletion"
+	else if(status==9)
+		error_type="Command Aborted due to Failed Fused Command"
+	else if(status==10)
+		error_type="Command Aborted due to Missing Fused Command"
+	else if(status==11)
+		error_type="Invalid Namespace or Format"
+	else if(status==12)
+		error_type="Command Sequence Error"
+	else if(status==13)
+		error_type="Invalid SGL Segment Descriptor"
+	else if(status==14)
+		error_type="Invalid Number of SGL Descriptors"
+	else if(status==15)
+		error_type="Data SGL Length Invalid"
+	else if(status==16)
+		error_type="Metadata SGL Length Invalid"
+	else if(status==17)
+		error_type="SGL Descriptor Type Invalid"
+	else if(status==18)
+		error_type="Invalid Use of Controller Memory Buffer"
+	else if(status==19)
+		error_type="PRP Offset Invalid"
+	else if(status==20)
+		error_type="Atomic Write Unit Exceeded"
+		
+	prnt_str = 'Failure Type :'+error_type+'\n'
+
+	prnt_str =  prnt_str +'---------------------------------------------------------\n'
+
+
+	prnt_str =  prnt_str +'---------------------------------------------------------\n'
+	prnt_str = prnt_str +"Dump register\n"
+	prnt_str =  prnt_str +'---------------------------------------------------------\n'
+
+	prnt_str =  prnt_str +'---------------------------------------------------------\n'
+	prnt_str = prnt_str +"Dump data buffer\n"
+	prnt_str =  prnt_str +'---------------------------------------------------------------------\n\n'
+
+	output_info(prnt_str)
+
+}
+
+log_config_para = function(zone,methd,q_num,q_depth){
+
+	var prnt_str = '------------------- Config Infomation -------------------------------\n'
+	//output_info(prnt_str)
+	//prnt_str = 'Block size :\t'+ zone.size + '\n'
+	
+	//prnt_str = prnt_str +'Zone :' + zone + '\n'
+	
+	prnt_str = prnt_str +"Access method :\t"+ methd +"\n"
+
+	//prnt_str =  prnt_str +'Priority:\n'
+
+	//prnt_str = prnt_str +"Data pattern :\n"
+
+	prnt_str = prnt_str +"Zone Start :"+ zone.offset+"\n"
+
+	prnt_str = prnt_str +"Zone Size:"+ zone.size+"\n"
+
+	prnt_str = prnt_str +"Zone Write Size :"+ zone.writesize+"\n"
+
+	prnt_str =  prnt_str +'---------------------------------------------------------\n'
+
+	prnt_str = prnt_str +"Power cycle : \n"
+
+	prnt_str =  prnt_str +'FUA :\n'
+
+	prnt_str =  prnt_str +'Trim :\n'
+
+	prnt_str =  prnt_str +'Write Cache :\n'
+
+	prnt_str =  prnt_str +'Error Injection :\n'
+
+	prnt_str =  prnt_str +'Queue :'+q_num+'\n'
+
+	prnt_str =  prnt_str +'Name Space :'+iniat.nn+" "+iniat.nsze +'\n'
+
+	prnt_str =  prnt_str +'---------------------------------------------------------------------\n\n'
+	output_info(prnt_str)
+    info(prnt_str)
+}
+log_statistics = function(start){
+	var prnt_str = '------------------- Command Statistics-------------------------------\n'
+	output_info(prnt_str)
+	prnt_str = 'Test end...\n'
+	var end =  moment();
+	prnt_str = prnt_str +"Date :" +moment().format("YYYY-MM-DD") + "\n"
+
+	prnt_str = prnt_str +"Time :"+moment().format("HH:mm:ss") + "\n"
+	var timepassed = Math.floor(moment(end -start)/1000)
+	var day_passed = Math.floor(timepassed/3600/24)
+	var res_second = timepassed - day_passed * 3600*24
+	var hour_passed = Math.floor(res_second/3600)
+	res_second = res_second - hour_passed*3600
+	var minute_passed = Math.floor(res_second/60)
+	res_second = res_second - minute_passed*60
+	prnt_str = prnt_str +"Elapsed Time: " + day_passed +' days '+hour_passed+' hours '+minute_passed+' minutes '+ res_second+" seconds " + "\n\n"
+	
+	output_info(prnt_str)
+
+	prnt_str ='Number of issued single commands: ' +"\n"
+	prnt_str =prnt_str+'Max single command execution time: '+"\n"
+	prnt_str =prnt_str +"Number of single commands time out (> 设定时间) :" + "\n"
+	prnt_str = prnt_str +"Max media access time:" + "\n"
+	prnt_str = prnt_str +"Number of media access time out (>  设定时间) :" + "\n"
+
+	prnt_str = prnt_str +"Number of issued flush commands ：" + "\n"
+	prnt_str = prnt_str +"Max flush cache command execution time : " + "\n"
+	prnt_str =prnt_str +"Number of flush cache commands time out (> 设定时间) ：" + "\n"		
+
+	prnt_str =prnt_str +"Number of power cycles  : " + "\n"
+	prnt_str =prnt_str +"Max spin-up time :" + "\n"
+	prnt_str =prnt_str +"Number of spin-up's time out (> 设定时间) " + "\n"
+
+	prnt_str =prnt_str +"Number of Dataset Management commands: " + "\n"
+	prnt_str =prnt_str +"Max single dataset management time : " + "\n"
+	prnt_str =prnt_str +"Number of dataset management time out (> 设定时间) :" + "\n"
+
+	prnt_str =  prnt_str +'---------------------------------------------------------------------\n\n'
+	output_info(prnt_str)
+	
+}
+dump_register= function()
+{
+	var buff=get_pci_reg();
+	var prnt_str = ''
+	prnt_str = '\n=================PCIE Register===============\n'
+	output_info(prnt_str)
+	//info(prnt_str)
+	prnt_str = ''
+	for(var i=0;i<256;i++)
+	{
+
+		prnt_str = prnt_str +fmt('%02x',buff[i])+ "\t"
+		if ((i+1)%16 == 0){
+
+			prnt_str = prnt_str	+ '\n'
+			
+		}
+	}
+	prnt_str = prnt_str+"Controller Status:\n"
+	for(var j = 28;j<32;j++){
+		prnt_str = prnt_str + fmt('%02x',buff[j])+ '\t'
+
+	}
+	output_info(prnt_str)
+	//info(prnt_str)
+
+	prnt_str = '\n=================NVME Register===============\n'
+	output_info(prnt_str)
+	//info(prnt_str)
+	prnt_str = ''
+	for(var i=0;i<64;i++)
+	{
+		prnt_str = prnt_str + fmt('%08x',reg_read(i*4))+ '\t'
+		if ((i+1)%4 == 0)
+		{
+			prnt_str = prnt_str	+ '\n'
+		}
+	}
+	
+	output_info(prnt_str)
+	//info(prnt_str)
+}
+
+dump_buff = function(r){
+	
+	var sec = Math.floor((r-1)/512)
+
+	var prnt_str = "========================w_buff==========================\n" 
+	
+	for(var i = sec*SECTOR_SIZE; i <(sec+1)*SECTOR_SIZE ; i=i+1) {
+
+		prnt_str = prnt_str +fmt('%02x',w_buff[i])+ "\t"
+		if ((i+1)%16 == 0){
+
+			prnt_str = prnt_str	+ '\n'
+			
+		}
+
+		//output_info(prnt_str+w_buff[ i ]+"\t"+w_buff[ i+1 ]+"\t"+w_buff[ i+2 ]+"\t"+w_buff[ i+3 ]+"\t"+w_buff[ i+4 ]+"\t"+w_buff[ i+5 ]+"\t"+ w_buff[ i+6 ]+"\t"+w_buff[ i+7 ]+"\t"+w_buff[ i+8 ]+"\t"+w_buff[ i+9 ]+"\t"+w_buff[ i+10 ]+"\t"+w_buff[ i+11 ]+"\t"+w_buff[ i+12 ]+"\t"+w_buff[ i+13 ]+ "\t"+w_buff[ i+14 ]+"\t"+w_buff[ i+15 ]+"\n")               
+	}
+	output_info(prnt_str)
+
+
+	var prnt_str = "========================r_buff==========================\n" 
+	
+	for (var i = sec*SECTOR_SIZE; i <(sec+1)*SECTOR_SIZE ; i=i+1) {
+
+		prnt_str = prnt_str +fmt('%02x',r_buff[i])+ "\t"
+		if ((i+1)%16 == 0){
+
+			prnt_str = prnt_str	+ '\n'
+			
+		}
+
+		//output_info(prnt_string+r_buff[ i ]+"\t"+r_buff[ i+1 ]+"\t"+r_buff[ i+2 ]+"\t"+r_buff[ i+3 ]+"\t"+r_buff[ i+4 ]+"\t"+r_buff[ i+5 ]+"\t"+ r_buff[ i+6 ]+"\t"+r_buff[ i+7 ]+"\t"+r_buff[ i+8 ]+"\t"+r_buff[ i+9 ]+"\t"+r_buff[ i+10 ]+"\t"+r_buff[ i+11 ]+"\t"+r_buff[ i+12 ]+"\t"+r_buff[ i+13 ]+ "\t"+r_buff[ i+14 ]+"\t"+r_buff[ i+15 ]+"\n")               
+	}
+	output_info(prnt_str)
+
+
+}
+if (require.main === module) {
+	file_name = '/home/gong/justice-script/info/info.txt'
+ 	var start = moment('2015-10-11 10:00:00',"YYYY-MM-DD HH:mm:ss")
+ 	//log_statistics(start)
+ 	scan()
+ 	dump_register()
+
+}
+/* log_sys_info()
+ log_driver_info()
+ log_dut_info()
+ log_script_info()
+ var start = moment();
+ //var sleep = require("sleep");
+
+//sleep.sleep(10)
+
+
+ log_end_info(start)
+ log_error_info()
+ log_config_para()
+info(process.cwd() )
+info(process.argv[1])*/
+
+
+exports.log_sys_info    = log_sys_info;
+exports.log_driver_info = log_driver_info;
+exports.log_dut_info = log_dut_info
+exports.log_script_info = log_script_info
+exports.log_end_info =log_end_info
+exports.log_error_info = log_error_info
+exports.log_config_para = log_config_para
+exports.clear_info = clear_info
+exports.set_log_path = set_log_path
+exports.log_statistics = log_statistics
+exports.dump_register = dump_register
+exports.dump_buff = dump_buff

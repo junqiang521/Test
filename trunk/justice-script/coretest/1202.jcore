@@ -1,0 +1,123 @@
+var rseed = Number(Date.now())%0xffff
+
+var ini_result =
+{ device: { device_no: '0' },
+  core: 
+   { pattern: 
+      { type: '2',
+        basedata: '0xaa',
+        random_seed: rseed,
+        flag: 'inc',
+        startvalue: '10',
+        bytesize: '1' },
+     region: { type: 'over', num: '19' },
+     zone: 
+      { type: 'seq_zone',
+        num: '10',
+        wr_size: 'medium',
+        reg_id: '8',
+        acsmethd: 'mix' } },
+  test: 
+   { q_num: '8',
+     timelimit: '12',
+     clr_his: 'no',
+     cmdtimeout: '40000',
+     Zone: 'overlap' } }
+var fs = require('fs');
+var os = require('os');
+var pat = require('../core_lib/c_pattern.jclib')
+var init = require('../init/init.js')
+var testlogs = require('../core_lib/c_logs.jclib')
+var out = require('../output/output.js')
+var moment = require("moment");
+var pid = process.pid
+var path = ''
+var ini_path='';
+var hist_path='';
+var ScriptError_Code = -5
+var cur_dir = process.argv[1];
+var exepath = cur_dir.split('/');
+var temp1 = exepath[exepath.length - 1]
+var temp2 = temp1.split('.');
+var purefile = temp2[0]
+
+for(var i = 0 ;i < exepath.length - 2;i++ )
+{
+
+	path = path +  exepath[i] +'/';
+}
+
+var sysid=os.hostname()
+var time =moment().format("YYYY-MM-DD")+"-"+ moment().format("HH:mm:ss")
+var device_no = 0
+var temp = process.argv[2]
+
+if(temp!=undefined){
+	
+	if(!isNaN(temp))
+	{
+		device_no = Number(temp)
+	}
+	
+}
+
+var ret = 0
+var error_str =''
+try{
+    out.out(time)
+    init.init(ini_result,device_no)
+    pat.pat_init(ini_result)
+    testlogs.set_log_path( path +"info/"+ purefile +"_"+time+"_"+sysid+ "_"+pid + '.jlog');
+
+    var template = require('../core_template/core_template.jctem');
+    template.get_config(ini_result);
+
+    hist_path = path + 'info/'
+    template.set_history(hist_path)
+    statics_init(100)
+    var start = moment()
+    ret = template.test_start()
+
+}catch(e){
+	
+	error_str = "\tname:  "   +  e.name  + "\n"+
+    "\tmessage:  "   +  e.message + "\n"+
+    "\tcode:  "   +  e.code
+	ret = ScriptError_Code
+	info(error_str)
+}
+
+
+testlogs.log_end_info(start,ret,error_str)
+statics_dump(path + "info/" + purefile +"_"+time+"_"+sysid+ "_"+pid + '.jlog')
+history_dump(purefile +"_"+time+"_"+sysid+ "_"+pid + '.hist')
+var pass_str =[
+'888888888       888888       88888888       88888888\n'+  
+'88       88  88       88   88             88\n'+
+'88       88  88       88   88             88\n'+
+'88       88  88       88   88             88\n'+
+'888888888    88 88888 88     88888888       88888888\n'+ 
+'88           88       88             88             88\n'+
+'88           88       88             88             88\n'+
+'88           88       88             88             88\n'+
+'88           88       88     88888888       88888888\n']
+var fail_str =[
+'  888888888    8888888      888888   88\n'+
+'88           88       88      88     88\n'+     
+'88           88       88      88     88\n'+      
+'88           88       88      88     88\n'+      
+'88888888888  88 88888 88      88     88\n'+
+'88           88       88      88     88\n'+         
+'88           88       88      88     88\n'+         
+'88           88       88      88     88\n'+         
+'88           88       88    888888   88888888888\n']
+
+if(ret ==0||ret==1)
+   info(pass_str)
+else
+   info(fail_str)
+info('end');
+cls()
+
+
+''

@@ -1,0 +1,88 @@
+var sequential  = require('../core_lib/access/sequential/sequential.js')
+var semi_seq    = require('../core_lib/access/semi_seq/semi_seq.js')
+var backward    = require('../core_lib/access/backward/backward.js')
+var semi_back   = require('../core_lib/access/semi_back/semi_back.js')
+var random      = require('../core_lib/access/random/random.js')
+var butterfly1  = require('../core_lib/access/butterfly1/butterfly1.js')
+var butterfly2  = require('../core_lib/access/butterfly2/butterfly2.js')
+var butterfly3  = require('../core_lib/access/butterfly3/butterfly3.js')
+var butterfly4  = require('../core_lib/access/butterfly4/butterfly4.js')
+var testlogs    = require('../core_lib/c_logs.jclib')
+var interface   = require('../core_lib/access/cmd_interface.js')
+var sprintf     = require("sprintf-js").sprintf
+
+function select_method (acsmeth , z_index)
+{
+    
+    var method = [sequential.sequential,semi_seq.semi_seq,backward.backward,semi_back.semi_back,random.random,butterfly1.butterfly1,
+    butterfly2.butterfly2,butterfly3.butterfly3,butterfly4.butterfly4]
+    testlogs.log_config_para(zone[z_index],acsmeth,8,64)
+    info(sprintf('select_method acsmeth:%d,z_index:%d',acsmeth,z_index))
+    var it
+    it = method[acsmeth-1](zone[z_index].offset, writesize,zone[z_index].size)
+    /*switch(acsmeth){
+        
+        case 1 :
+            it = sequential.sequential(zone[z_index].offset, writesize,zone[z_index].size)         
+        break;
+
+        case 2 :
+            it = semi_seq.semi_seq(zone[z_index].offset, writesize,zone[z_index].size)
+        break;
+
+        case 3 :
+            it = backward.backward(zone[z_index].offset, writesize,zone[z_index].size)
+        break;
+
+        case 4 :
+            it = semi_back.semi_back(zone[z_index].offset, writesize,zone[z_index].size)           
+        break;
+
+        case 5 :
+            it = random.random(zone[z_index].offset, writesize,zone[z_index].size)
+        break;
+
+        case 6 :
+            it = butterfly1.butterfly1(zone[z_index].offset, writesize,zone[z_index].size)
+        break;
+
+        case 7 :
+            it = butterfly2.butterfly2(zone[z_index].offset, writesize,zone[z_index].size)
+        break;
+
+        case 8 :
+            it = butterfly3.butterfly3(zone[z_index].offset, writesize,zone[z_index].size)
+        break;
+        
+        case 9 :
+            it = butterfly4.butterfly4(zone[z_index].offset, writesize,zone[z_index].size)
+        break;
+
+        default:break;
+
+    }*/
+    if(it)
+    { 
+        
+        it.meThod(interface.wh_prog)
+        info("write command")
+        var ret1=it.forEach(interface.nvme_write,interface.all_bell)
+      
+        info("read and compare")
+        var ret2=it.forEach(interface.nvme_readcmp,interface.all_bell_cmp)
+
+        if(ret1==0 && ret2==0){
+            return 0
+        }        
+        else if(ret1==-2 || ret2==-2){
+            return -2
+        }
+        else if(ret1==-3 || ret2==-3)
+            return -3
+        else if(ret1==1 || ret2==1){
+            return 1
+        }
+    }
+    
+}
+exports.selectMethod = select_method

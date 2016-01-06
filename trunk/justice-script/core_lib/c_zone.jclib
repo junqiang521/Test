@@ -1,0 +1,242 @@
+//----------------------------------------------------------------
+//-  Copyright (c) Maxio Technology, Inc.
+//-  Script - /c_zone.js   Rev. 0.0.1
+//-           (For Justic V*.* and above)   
+//-  Description 
+// Automatically configure region setting for a disk.
+//         The setting will be depended on the capacity of the disk.
+//         People can configure regions by themselves without using
+//         this subroutine.- seqential Full disk aync read /write verify(4k)
+//----------------------------------------------------------------
+var init = require('../init/init.js')
+require('../../justice-cmd/command/nvme-cmd.js')
+var sprintf = require("sprintf-js").sprintf
+//var Random = require("random-js");
+//var mt_write = Random.engines.mt19937();
+var random_seed = 10;
+//var random1 = new Random(mt_write.seed(random_seed))
+//var fs = require('fs')
+//var ini = require('multilevel-ini');
+//var result = ini.getSync('../core/config.ini');
+//info('start')
+//global variable
+region = new Array()
+zone = new Array()
+var SECTOR_SIZE = 512
+//info( init.total_lba)
+var total_lba = init.total_lba
+var bu 
+bu = sprintf("total_lba = %d",total_lba)
+info(bu)
+//info('total_lba = %d ',total_lba)
+//write plain data to this region
+function write_region(region_start_lba,region_end_lba,region_wr_sec) {
+	info( 'start from :' + region_start_lba + ' - ' + region_end_lba + ' sector number: ' + region_wr_sec  )
+	//data pattern implementation
+	for (var start_lba = region_start_lba; start_lba < region_end_lba; start_lba += region_wr_sec) {
+		//Read and compare
+		for (var j = 0; j < region_wr_sec; j++) {
+			
+			w_buff.writeInt32BE(start_lba + j,j*SECTOR_SIZE)
+			if ((start_lba + j) == region_end_lba) {
+				region_wr_sec = j
+				info('last will exceed region_end_lba,%d',j)
+			}				
+					
+		}
+		write(start_lba, region_wr_sec, 0)	
+	
+	}
+}
+
+//Description: 
+
+//create sequential regions,put region offset and region size to region array
+// inputs: reg_num - the total region number will be reg_num + 1 ,base value 0,[0,reg_num]
+// the last region is the total LBA
+function setup_seq_regions(reg_num) {		
+	reg_size = Math.floor(total_lba / reg_num)
+	for(var i = 0;i < reg_num;i += 1) {
+		region.push({offset : reg_size*i, size : reg_size })
+		//info('region is:' + i + '  region from :'+region[i].offset+' - ' +(region[i].offset+region[i].size) )
+		if(region[i].offset + region[i].size > total_lba){
+			info("Warning: RegionSize %d is too big.  ",region[i].size)
+			region[i].size = total_lba-region[i].offset
+			info("Shrink the RegionSize to %d sectors. ",region[i].size)
+		}
+		if (i== reg_num-1){
+
+			region[i].size = total_lba-region[i].offset
+		}
+	}
+	//a total LBA region and last region 
+	region.push({offset : 0, size : total_lba})
+}
+//Description: 
+//create two special region from the boundary of total disk
+//2097152*512/1024=1024M=1G ,2097152transfer to hex 200000
+function setup_boundary_regions()
+{
+	var bound_size = 2097152//size is 1G
+	region.push({ offset : 0, size : bound_size })
+	region.push({ offset : (total_lba -bound_size), size : bound_size })
+	//a total LBA region and last region 
+	region.push({offset : 0, size : total_lba})
+}
+//Description: 
+// Create regions each overlap with its previous region.
+// inputs: reg_num - the total region number will be reg_num + 1 ,base value 0,[0,reg_num]
+// the last region is the total LBA
+function setup_overlap_regions(reg_num)
+{
+	//both end region size 
+	end_region = Math.floor(total_lba / reg_num)
+	//info('end_region'+end_region*SECTOR_SIZE/1000000000)
+	//middle region size overlap
+	mid_region = Math.floor(total_lba / (2 * reg_num - 1))
+	//info('mid_region'+mid_region*SECTOR_SIZE/1000000000)
+	for(var i= 0; i < reg_num; i+=1) {
+		//set up region offset
+		if(i == 0){
+			region.push({ offset : 0, size : end_region })
+		}
+		else if(i == (reg_num-1)){
+			region.push({ offset : mid_region * ( 2 * i - 1), size : end_region })
+		}
+		//set up region size
+		else{
+			//info('region is: ' + i +' offset'+ (mid_region * ( 2 * i - 1)*SECTOR_SIZE/1000000000))
+			region.push({ offset : mid_region * ( 2 * i - 1), size : mid_region*3 })
+		}	
+		if(region[i].offset + region[i].size > total_lba){
+			info('Warning:'+'region is:' + i +' RegionSize is too big.  '+region[i].size)
+			region[i].size = total_lba-region[i].offset
+			info('Shrink the RegionSize to '+region[i].size +'sectors.')
+		}
+		//info('region is:' + i + '  region from :'+region[i].offset+' - ' +(region[i].offset+region[i].size) )
+	 }
+	 //a total LBA region and last region 
+	region.push({offset : 0, size : total_lba})
+}
+
+//Description: 
+// an interface to export all set up region functions,and create a total lba region 
+//reg_type:'over','bound''seq'
+// inputs: reg_num - how many regions will be used in the disk,base value 0
+exports.set_regions = function (reg_type,reg_num){
+//function set_regions(reg_type,reg_num){
+	info('create region now...')
+	info('reg_type is '+reg_type)
+	info('reg_num is '+(reg_num+1))
+	if(reg_type == 'over'){
+		setup_overlap_regions(reg_num)
+	}
+	else if(reg_type == 'bound'){
+		setup_boundary_regions()
+	}
+	else if(reg_type =='seq'){
+		setup_seq_regions(reg_num)
+	}
+	for(var i1=0; i1 <= reg_num; i1+=1){	
+		//info('region is:' + i1 + '  region from :'+region[i1].offset+' - ' +(region[i1].offset+region[i1].size) )
+		//info('region size :'+ region[i1].size*SECTOR_SIZE/1000000000+'G')
+	
+	}
+}
+
+//function set_zones(z_type,z_offset, z_size, z_num, z_wr_size, reg_id){
+exports.set_zones = function (z_type,z_offset, z_size, z_num, z_wr_size, reg_id){
+	for(var i2=0; i2 < z_num; i2+=1) {
+		
+		//info('  \n\nbuild zone ' )
+		//info('region is:' + reg_id + '  region from :'+region[reg_id].offset+' - ' +(region[reg_id].offset+region[reg_id].size) )
+		if(z_type == 'ran_zone')
+		{
+			//z_offset =  region[reg_id].offset + Math.floor(Math.random()*region[reg_id].size)
+			//z_size = Math.floor(Math.random()*region[reg_id].size)
+		//	z_offset = region[reg_id].offset + random1.integer(0, region[reg_id].size)
+		seed(random_seed)
+		z_offset = region[reg_id].offset + rand(0, region[reg_id].size)
+		//	z_size = random1.integer(0, region[reg_id].size)
+		z_size = rand(0, region[reg_id].size)
+			//info('zone start from:' + z_offset )
+			//info('zone size is:' + z_size )
+			if(( z_offset + z_size) > (region[reg_id].offset + region[reg_id].size)){
+				//info( 'Warning: ZoneSize is too big: ' + z_size) 
+				z_size = Math.floor(region[reg_id].offset + region[reg_id].size - z_offset)
+				//info('Shrink the ZoneSize to:' + z_size)
+			}		
+		}
+		else if(z_type == 'full_region')
+		{
+			z_offset =  region[reg_id].offset 
+			z_size = region[reg_id].size
+		}
+		else if(z_type == 'seq_zone')
+		{
+			
+			z_size = Math.floor(region[reg_id].size / z_num);
+			z_offset = region[reg_id].offset + i2 * z_size;
+			if(i2==z_num-1 )
+			{
+				z_size = region[reg_id].size - i2 * z_size
+				z_offset = region[reg_id].size+ region[reg_id].offset - z_size
+			}
+
+		}
+		//Need to adjust size following idfy data
+		if( z_wr_size == 'small'){
+			//4k
+			//z_wr_size = 1+Math.floor(Math.random() * 8)
+			//z_wr_size =  random1.integer(1,8)//under 4k
+			z_wr_size =  rand(1,8)
+		}
+		else if(z_wr_size == 'medium'){
+			//128k
+			//z_wr_size =  32+ Math.floor(Math.random() * 32)//16k-32k
+		//	z_wr_size =  random1.integer(8,64)
+		    z_wr_size =  rand(8,64)
+
+		}
+		else if(z_wr_size == 'large'){
+			//32M bytes
+			//z_wr_size = 128 + Math.floor(Math.random() * 128)//32k-128k
+			//z_wr_size =  random1.integer(64,256)
+			z_wr_size =  rand(64,256)
+		}
+		else if(z_wr_size == 'all'){
+			//32M bytes
+			//z_wr_size = 1 + Math.floor(Math.random() * 256)
+			//z_wr_size = random1.integer(1,256)
+			z_wr_size = rand(1,256)
+		}
+		else if(z_wr_size == '512b'){
+			z_wr_size = 1
+		}
+		else if(z_wr_size == '4k'){
+			z_wr_size = 8
+		}
+		else if(z_wr_size == '8k'){
+			z_wr_size = 16
+		}
+		else if(z_wr_size == '16k'){
+			z_wr_size = 32
+		}
+		else if(z_wr_size == '32k'){
+			z_wr_size = 64
+		}
+		else if(z_wr_size == '64k'){
+			z_wr_size = 128
+		}
+		else if(z_wr_size == '128k'){
+			z_wr_size = 256
+		}
+		zone.push({ offset :z_offset, size : z_size,  writesize : z_wr_size})	
+		//show zone info mation here
+		//info('zone id  is:' + i2 + '  zone from :' + z_offset + ' - ' + (z_offset + z_size) )
+		//info('  zone Size: ' + z_size*SECTOR_SIZE/1000000000 + "G")
+		//info('  write block size :' + z_wr_size )
+	}
+
+}
+

@@ -1,0 +1,1769 @@
+/*********************************************************************************
+    *Copyright (c) Maxio Technology, Inc.
+    *FileName:  // am.js
+    *Author:  //gongjunqiang
+    *Version:  //0.0.0
+    *Date:  //
+    *Description :Synchronous write/read& compare include 19 access methods
+     Function Sequential (zone_start,zone_end,zone_size,zone_wr_size,zone_loop)
+     Input parameters:  1 zone_start : test start from Address
+                        2 zone_end   : test end  Address
+                        3 zone_size  : length of the zone
+                        4 zone_wr_size: sector number in each write command
+                        5 zone_loop  : whether need Repetitive write
+                        6 q_num      : IO queque numbers (8 as maxium value)   
+                        7 q_depth    : command counts in an IO queue  (4095 as maxium value) 
+
+     The following function list have the same parameters
+    
+**********************************************************************************/ 
+
+require('../../justice-cmd/command/nvme-cmd.js')
+var pat = require('./c_pattern.jclib')
+var logs =  require('../output/output.js');
+var fmt = require('printf')
+var testlogs = require('../core_lib/c_logs.jclib')
+var init = require('../init/init.js')
+var moment = require("moment");
+var sprintf = require("sprintf-js").sprintf
+var logs_filename =''
+
+var cur_dir = process.argv[1]
+var urlChunks = cur_dir.split('/');
+var ascmeth_str = ['Sequential','semi-Seque','Backward','semi_Back','Random','Butterfly','Butterfly2','Butterfly3','Butterfly4']
+
+var TimeOut_Code = 1
+var Success_Code = 0
+var Error_Code = -1
+var MisCompare_Code = -2
+var HWError_Code = -3
+var DrvError_Code = -4
+for(var i = 0 ;i < urlChunks.length - 2;i++ )
+{
+
+  logs_filename = logs_filename +  urlChunks[i] +'/';
+}
+
+logs_filename = logs_filename + 'info/error.log';
+
+var timelimit = 0
+
+var SECTOR_SIZE = init.sector_size
+var device = init.device
+
+var temp_buff = new Buffer(64*1024*1024)
+var w_buff = get_write_buffer()
+var r_buff = get_read_buffer()
+var send_msg =''
+var step_percent = 0.1
+var MAX_BUFFER_SIZE = 64 * 1024 * 1024
+
+var start = Date.now()
+var time_passed
+
+function cmp_rbuff (id_arry,length) {
+        
+        for(var i =0; i<length; i++ ){
+            
+            if (id_arry[i]!=r_buff[i] ){
+                return i+1
+            }
+        }
+        return 0
+    
+}
+//--------------------------- 1.Sequential ----------------------------
+//从zone_start开始，到zone_end为止，以zone_wr_size为单位，通过DMA方式写入数据，最后一个小于blocksize的的数据单独写入
+
+function Sequential_async (zone_start,zone_end,zone_size,zone_wr_size,zone_loop,q_num,q_depth){
+    var txt = "ASYNC Sequential zone_start:"+ zone_start +",\tzone_end:"+ zone_end + ",\tzone_size:" + zone_size + ",\tzone_wr_size:"+zone_wr_size+",\tzone_loop:\t"+zone_loop+'\tq_num:'+q_num+'\tq_depth:'+q_depth
+    info(txt)
+    logs.output_info(txt+'\n')
+    if(zone_loop!=0){
+        
+       // OV_LAP = Math.floor(Math.random()*5+1)  
+       OV_LAP =rand(1,5)
+        info(' Repetitive Mode')
+    }else{
+        OV_LAP = 1  
+    }
+
+    var i
+    var percentage = 0
+    var start_lba = zone_start
+    var res_sector
+    var comm_num = 0
+    var last_lba = 0
+    var sector_cnt = 0
+    var q_start = 0
+    var q_end  = 0
+      
+    while (start_lba < zone_end) 
+    {   
+        
+        for (var q_id = 1;q_id <= q_num ;q_id++) 
+        {
+            
+            select(device, 0, q_id)
+            sector_cnt = 0
+            q_start = start_lba
+            comm_num = 0
+
+           pat.fill(start_lba,zone_wr_size * q_depth)
+
+            for (i = 0; i != q_depth; i++){
+                                    
+                if(start_lba + zone_wr_size <= zone_end) {
+                    
+                    //fs.appendFileSync('error.txt',"w_buff "+ i +"start_lba" + start_lba +"\n"+ w_buff.toString('hex', 0, SEC_NUM*SECTOR_SIZE)+ "\n")
+                    write_async(start_lba, zone_wr_size, i, zone_wr_size*SECTOR_SIZE*i)
+                    start_lba = start_lba + zone_wr_size 
+                    sector_cnt=sector_cnt+ zone_wr_size   
+                    comm_num++  
+                                
+                }
+                
+                else {
+                    
+                    res_sector = zone_end - start_lba
+                    
+                    if (res_sector > 0){
+
+                        //info('2:write will exceed, start_lba:%d,\t next_lba:%d zone_end:%d,zone_wr_size:%d\t',start_lba,start_lba +zone_wr_size,zone_end,res_sector)
+                        write_async(start_lba, res_sector, i, zone_wr_size*SECTOR_SIZE*i)
+                        start_lba = start_lba + res_sector  
+                        sector_cnt=sector_cnt+res_sector
+                        comm_num++
+                    }
+                    //info('2:last res_sector:',res_sector)
+                    break
+                }
+                
+                    
+            }
+            
+            door_bell()
+            
+
+            while (comm_num > 0) {
+                //info(" write retrivecnt is %d ",i)
+                ret = retrieve()
+                comm_num -= ret.cnt
+                for(var i = 0; i<ret.cnt;i++)
+                {
+                    if(ret.results[i].status){
+
+                        info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                        testlogs.dump_register()
+                        testlogs.log_error_info(ret.results[i].status)
+          /*              logs.output_w_buff();
+                        logs.output_r_buff();*/
+                        return HWError_Code;
+                    }   
+                }
+            } 
+            //info('sector_cnt write :' + sector_cnt + "\tcomm_num : "+comm_num)
+            
+        
+            comm_num = 0 
+            sector_cnt = 0
+            start_lba = q_start
+            
+            for (i = 0; i != q_depth; i++){
+            //if (i==0)info("read ,queue : %d,loop : %d,start_lba : %d:",q_id,i,start_lba)
+                
+                if ((start_lba + zone_wr_size) <= zone_end){
+                    
+                    read_async(start_lba, zone_wr_size, i, zone_wr_size * SECTOR_SIZE *i)
+                    start_lba = start_lba + zone_wr_size
+                    comm_num++
+                    sector_cnt = sector_cnt + zone_wr_size
+                    
+                }
+                else
+                {
+                    res_sector = zone_end - start_lba
+                    if(res_sector > 0){
+                        read_async(start_lba, res_sector, i, zone_wr_size * SECTOR_SIZE *i)
+                        start_lba = start_lba + res_sector
+                        comm_num++;
+                        sector_cnt = sector_cnt + res_sector
+                    }
+                    break;
+                }
+                
+            }
+
+            door_bell()
+            while (comm_num > 0) {
+                //info(" read retrivecnt is %d ",i)
+                ret = retrieve()
+                comm_num -= ret.cnt
+                for(var i = 0; i<ret.cnt;i++)
+                {
+                    if(ret.results[i].status){
+
+                        info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                        testlogs.dump_register()
+                        testlogs.log_error_info(ret.results[i].status)
+/*                        logs.output_w_buff();
+                        logs.output_r_buff();*/
+                        return HWError_Code;
+                    }   
+                }
+            } 
+            //info('sector_cnt read :' + sector_cnt + "\tcomm_num : "+comm_num)
+           
+                
+        
+       
+            //pat.recover(q_start,sec_queue*SECTOR_SIZE)
+
+            var r = cmp(sector_cnt*SECTOR_SIZE, 0, 0)
+
+            if ( r ) { 
+
+                send_msg =  "Failed sector_no = "+Math.floor(r/SECTOR_SIZE)+'offset = '+r%SECTOR_SIZE 
+                info(send_msg)
+                logs.output_info(send_msg+'\n')
+                history_dump(logs_filename);
+                testlogs.dump_register()
+                testlogs.dump_buff(r)
+ /*               logs.output_w_buff();
+                logs.output_r_buff();*/
+
+                return MisCompare_Code
+            }else{
+                
+                //info("OK")    
+            }
+        
+            var time_passed = (Date.now() - start) / 1000
+            time_passed = Math.floor(time_passed/3600)+":"+Math.floor((time_passed%3600)/60)+":"+((time_passed%3600)%60).toFixed(2)+" "
+            var time_left = time_spec * 3600 - (Date.now() - start) / 1000
+            if (time_left<0)
+                time_left = 0
+            else
+                time_left = Math.floor(time_left/3600)+":"+Math.floor((time_left%3600)/60)+":"+((time_left%3600)%60).toFixed(2)+" "
+        
+       
+         
+            if ( start_lba >= (zone_start + percentage * zone_size /100)  ){
+                
+            //    time_passed = (Date.now() - start) / 1000
+                send_msg = " slba="+fmt("%010d",start_lba) +",    nblk: " + fmt("%03d",zone_wr_size) +'    '+((start_lba-zone_start)*100/zone_size).toFixed(2)+ "% done,    " + time_passed + " passed    "+ time_left +" left\n"
+                info( 'msg:' + send_msg  )
+                logs.output_info(send_msg+'\n')
+                percentage = percentage + step_percent
+                if(percentage>100)
+                {
+                    percentage=100
+
+                }
+                
+            } 
+            if (time_left==0)
+              {
+
+                return TimeOut_Code
+             }
+                if(start_lba >= zone_end)break;
+        }
+        
+    }
+
+    return Success_Code
+}
+//-----------------------2.Semi-Sequential ----------------------------
+//从startLBA开始，到EndLBA为止，过DMA方式写入数据，地址跨度以2倍blocksize为单位，写入长度为一个blocksize的数据，
+//即写startLBA，startLBA+2blocksize，startLBA+4blocksize……，最后一个小于blocksize的的数据单独写入
+//write zone_wr_size sector then read and compare , need modify laterexports.Sequential_async = Sequential_async
+function semi_Sequential_async(zone_start,zone_end,zone_size,zone_wr_size,zone_loop,q_num,q_depth)
+{
+    var txt = "ASYNC semi_Sequential zone_start:"+ zone_start +",\tzone_end:"+ zone_end + ",\tzone_size:" + zone_size + ",\tzone_wr_size:"+zone_wr_size+",\tzone_loop:\t"+zone_loop+'\tq_num:'+q_num+'\tq_depth:'+q_depth
+    info(txt)
+    logs.output_info(txt+'\n')
+    if(zone_loop!=0){
+        
+       // OV_LAP = Math.floor(Math.random()*5+1) 
+        OV_LAP =rand(1,5) 
+        info(' Repetitive Mode')
+    }else{
+        OV_LAP = 1  
+    }
+     if(zone_wr_size%2){
+
+         zone_wr_size = zone_wr_size+1
+         info('zone_wr_size add one for overlap \n')
+    } 
+    var i 
+    var percentage = 0
+    var start_lba  =  zone_start
+    var sector_cnt = 0
+    var res_sector
+    var comm_num = 0
+ 
+    last_lba = 0
+   
+    comm_num = 0    
+
+    while (start_lba < zone_end) 
+    {
+       
+        for (var q_id = 1;q_id <= q_num ;q_id++) {
+            
+            select(device, 0, q_id)
+            sector_cnt = 0
+            q_start = start_lba
+            comm_num = 0
+            pat.fill(start_lba,zone_wr_size * q_depth)
+
+            for (i = 0; i != q_depth; i++){
+                                    
+                if(start_lba + zone_wr_size <= zone_end) {
+                    
+                    //fs.appendFileSync('error.txt',"w_buff "+ i +"start_lba" + start_lba +"\n"+ w_buff.toString('hex', 0, SEC_NUM*SECTOR_SIZE)+ "\n")
+                    write_async(start_lba, zone_wr_size, i, zone_wr_size*SECTOR_SIZE*i)
+                    //info('1:last will exceed zone_end:%d',start_lba,start_lba +zone_wr_size)
+                    start_lba = start_lba + zone_wr_size *2   
+                    comm_num++     
+                    sector_cnt=sector_cnt+ zone_wr_size   
+                            
+                }
+                else 
+                {
+                    
+                    res_sector = zone_end - start_lba
+                    //info('res_sector:%d',res_sector)
+                    if (res_sector > 0 && res_sector<= zone_wr_size){
+
+                        //info('2:write will exceed, start_lba:%d,\t next_lba:%d zone_end:%d,zone_wr_size:%d\t',start_lba,start_lba +zone_wr_size,zone_end,res_sector)
+                        write_async(start_lba, res_sector, i, zone_wr_size*SECTOR_SIZE*i)
+                        start_lba = start_lba + res_sector  
+                        sector_cnt=sector_cnt+res_sector
+                        comm_num++
+                    }
+                    //info('2:last res_sector:',res_sector)
+                    break
+                }
+                   
+            }
+            
+            door_bell()
+
+             while (comm_num > 0) {
+                //info(" write retrivecnt is %d ",i)
+                ret = retrieve()
+                comm_num -= ret.cnt
+                for(var i = 0; i<ret.cnt;i++)
+                {
+                    if(ret.results[i].status){
+
+                        info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                        testlogs.dump_register()
+                        testlogs.log_error_info(ret.results[i].status)
+/*                        logs.output_w_buff();
+                        logs.output_r_buff();*/
+                        return HWError_Code;
+                    }   
+                }
+            } 
+            //info('sector_cnt write :' + sector_cnt + "\tcomm_num : "+comm_num)
+            
+        
+            comm_num = 0 
+            sector_cnt = 0
+            start_lba = q_start
+
+            for (i = 0; i != q_depth; i++){
+            //if (i==0)info("read ,queue : %d,loop : %d,start_lba : %d:",q_id,i,start_lba)
+                
+                if ((start_lba + zone_wr_size) <= zone_end){
+                    
+                    read_async(start_lba, zone_wr_size, i, zone_wr_size * SECTOR_SIZE *i)
+                    start_lba = start_lba + zone_wr_size*2
+                    comm_num++
+                    sector_cnt = sector_cnt + zone_wr_size
+                    
+                }
+                else
+                {
+                    res_sector = zone_end - start_lba
+                   if (res_sector > 0 && res_sector<= zone_wr_size){
+                        read_async(start_lba, res_sector, i, zone_wr_size * SECTOR_SIZE *i)
+                        start_lba = start_lba + res_sector
+                        comm_num++;
+                        sector_cnt = sector_cnt + res_sector
+                    }
+                    break;
+                }
+                
+            }
+
+            door_bell()
+            while (comm_num > 0) {
+                //info(" read retrivecnt is %d ",i)
+                ret = retrieve()
+                comm_num -= ret.cnt
+                for(var i = 0; i<ret.cnt;i++)
+                {
+                    if(ret.results[i].status){
+
+                        info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                        testlogs.dump_register()
+                        testlogs.log_error_info(ret.results[i].status)
+/*                        logs.output_w_buff();
+                        logs.output_r_buff();*/
+                        return HWError_Code;
+                    }   
+                }
+            } 
+            //info('sector_cnt read :' + sector_cnt + "\tcomm_num : "+comm_num)
+           
+                
+        
+       
+            //pat.recover(q_start,sec_queue*SECTOR_SIZE)
+            var r = cmp(sector_cnt*SECTOR_SIZE, 0, 0)
+            if ( r ) {                  
+                send_msg =  "Failed sector_no = "+Math.floor(r/SECTOR_SIZE)+'offset = '+r%SECTOR_SIZE 
+                info(send_msg)
+                logs.output_info(send_msg+'\n')
+                history_dump(logs_filename);
+                testlogs.dump_register()
+                testlogs.dump_buff(r)
+/*                logs.output_w_buff();
+                logs.output_r_buff();*/
+                return MisCompare_Code
+
+            }else{
+                
+                //info("OK")    
+            }
+        
+            var time_passed = (Date.now() - start) / 1000
+            time_passed = Math.floor(time_passed/3600)+":"+Math.floor((time_passed%3600)/60)+":"+((time_passed%3600)%60).toFixed(2)+" "
+
+            var time_left = time_spec * 3600 - (Date.now() - start) / 1000
+            if (time_left<0)
+                time_left = 0
+            else
+                time_left = Math.floor(time_left/3600)+":"+Math.floor((time_left%3600)/60)+":"+((time_left%3600)%60).toFixed(2)+" "
+            
+
+             if ( start_lba >= (zone_start + percentage * zone_size /100)  ){
+                
+                if (start_lba > (zone_start+zone_size)) start_lba = zone_start+zone_size 
+                send_msg = " slba="+fmt("%010d",start_lba) +",    nblk: " + fmt("%03d",zone_wr_size) +'    '+((start_lba-zone_start)*100/zone_size).toFixed(2)+ "% done,    " + time_passed + " passed    " + time_left +" left\n"
+                info( 'msg:' + send_msg  )
+                logs.output_info(send_msg+'\n')
+                percentage = percentage + step_percent;
+                if(percentage>100)
+                {
+                    percentage=100
+                   
+                }
+            }
+            if (time_left==0) return TimeOut_Code
+                             
+            if(start_lba >= zone_end)break; 
+        }
+    }
+    return Success_Code
+}
+//------------------- 3.Overlap Sequential -----------------------------
+//从startLBA开始，到EndLBA为止，以blocksize为单位，通过DMA方式写入数据，每次写数据的时候从前一次写数据块的中间开始，
+//即从第二次写操作开始，每次都会覆盖前次写入的一半数据，最后一个小于blocksize的的数据单独写入
+function Overlap_Sequential_async(zone_start,zone_end,zone_size,zone_wr_size,zone_loop,q_num,q_depth)
+{
+    var txt = "ASYNC Overlap Sequential zone_start:"+ zone_start +",\tzone_end:"+ zone_end + ",\tzone_size:" + zone_size + ",\tzone_wr_size:"+zone_wr_size+",\tzone_loop:\t"+zone_loop+'\tq_num:'+q_num+'\tq_depth:'+q_depth
+    info(txt)
+    logs.output_info(txt+'\n')
+    if(zone_wr_size%2){
+
+         zone_wr_size = zone_wr_size+1
+         info('zone_wr_size add one for overlap \n')
+    } 
+       
+    if(zone_loop!=0){
+        
+        OV_LAP = Math.floor(Math.random()*5+1)  
+        info(' Repetitive Mode')
+    }else{
+        OV_LAP = 1  
+    }
+    var i
+    var s_offset =  zone_wr_size * SECTOR_SIZE  
+    var block_offset = q_num * q_depth * zone_wr_size *1.5//sector
+    var percentage = 0
+    var start_lba
+    var sec_queue = 0//sector in queques
+    var res_sector = 0
+    var comm_num = 0
+    var MAX_BUFFER_SIZE = 64 * 1024 * 1024
+    last_lba = 0
+    block_start = 0
+    
+    comm_num = 0    
+    for (block_start = zone_start; block_start < zone_end; block_start += block_offset) 
+    {
+        start_lba = block_start            
+        
+
+        for (var q_id = 2;q_id <= q_num ;q_id++) {
+            sec_queue = 0
+            select(device, 0, q_id)
+
+            pat.fill(start_lba,zone_wr_size * q_depth * 2)
+            
+            var q_start= start_lba
+            for (i = 0; i != q_depth; i++){
+                                    
+                if(start_lba + zone_wr_size*1.5 <= zone_end) {
+                    
+                    //fs.appendFileSync('error.txt',"w_buff "+ i +"start_lba" + start_lba +"\n"+ w_buff.toString('hex', 0, SEC_NUM*SECTOR_SIZE)+ "\n")
+                    write_async(start_lba, zone_wr_size/2, i, i*zone_wr_size*2*SECTOR_SIZE)
+                    write_async(start_lba+zone_wr_size/2, zone_wr_size, i, i*zone_wr_size*2*SECTOR_SIZE+SECTOR_SIZE*zone_wr_size)  
+
+                    //info((i*zone_wr_size*2).toString(10)+" to "+(i*zone_wr_size*2+zone_wr_size).toString(10))
+
+                    w_buff.copy(temp_buff,i*zone_wr_size*1.5*SECTOR_SIZE ,i*zone_wr_size*2*SECTOR_SIZE,i*zone_wr_size*2*SECTOR_SIZE+SECTOR_SIZE*zone_wr_size/2)
+                    w_buff.copy(temp_buff,i*zone_wr_size*1.5*SECTOR_SIZE+SECTOR_SIZE*zone_wr_size/2 ,i*zone_wr_size*2*SECTOR_SIZE+SECTOR_SIZE*zone_wr_size,i*zone_wr_size*2*SECTOR_SIZE+SECTOR_SIZE*zone_wr_size+SECTOR_SIZE*zone_wr_size)
+                    start_lba = start_lba + zone_wr_size *1.5   
+                    comm_num=comm_num+2  
+                    if(start_lba + zone_wr_size*1.5 == zone_end) {
+
+                        //info('1:last will exceed zone_end:%d',start_lba,start_lba +zone_wr_size*1.5)
+                        
+                    }                
+                }
+                else 
+                {
+                    
+                    res_sector = zone_end - start_lba
+                    //info('last sectors, block_start:%d,\t next_lba:%d zone_end:%d,sec_num:%d\t',start_lba,start_lba +zone_wr_size*1.5,zone_end,res_sector)
+                    if (res_sector>0){
+                        //info('2:write will exceed, block_start:%d,\t next_lba:%d zone_end:%d,sec_num:%d\t',start_lba,start_lba +zone_wr_size,zone_end,res_sector)
+                        write_async(start_lba, res_sector, i, zone_wr_size*SECTOR_SIZE*i*2)
+                        w_buff.copy(temp_buff,i*zone_wr_size*1.5*SECTOR_SIZE ,i*zone_wr_size*2*SECTOR_SIZE,i*zone_wr_size*2*SECTOR_SIZE+SECTOR_SIZE*res_sector)
+                        start_lba = start_lba + res_sector  
+                        comm_num++
+                    }
+                    //info('2:last res_sector:',res_sector)
+                    break
+                }
+                     
+            }
+            
+            door_bell()
+            if (i==q_depth)
+            {
+                sec_queue = sec_queue + q_depth * zone_wr_size*1.5
+                info("sec_queue = "+ sec_queue)
+            } 
+            else
+            {
+                sec_queue = sec_queue + i * zone_wr_size *1.5 + res_sector
+                info("i = " +i+"sec_queue = "+ sec_queue)
+            }
+            info('qid ='+ q_id +"sectors in this queue = " +(sec_queue).toString(10))
+            while (comm_num > 0) {
+                
+                ret = retrieve()
+                comm_num -= ret.cnt
+                for(var i = 0; i<ret.cnt;i++)
+                {
+                    if(ret.results[i].status){
+
+                        info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                        testlogs.dump_register()
+                        testlogs.log_error_info(ret.results[i].status)
+                        logs.output_w_buff();
+                        logs.output_r_buff();
+                        return HWError_Code;
+                    }   
+                }
+                //info(" write retrivecnt is %d comm_num is %d",ret.cnt,comm_num)
+            } 
+            info('qid ='+ q_id +"write in this queue finished" )
+            start_lba = q_start
+            comm_num = 0;
+            res_sector = 0;
+            for (i = 0; i != q_depth; i++){
+                //if (i==0)info("read ,queue : %d,loop : %d,start_lba : %d:",q_id,i,start_lba)
+                if((s_offset*(q_depth*(q_id -1) + i))>= MAX_BUFFER_SIZE ){
+                
+                    info('r_buff address exceed')
+                    logs.output_info('r_buff address exceed:0x' + (s_offset*(q_depth*(q_id -1) + i)).toString(16)+'\n')
+                    return -1 ;
+                }
+                if ((start_lba + zone_wr_size*1.5) <= zone_end){
+                    
+                    read_async(start_lba, zone_wr_size*1.5, i, i*SECTOR_SIZE*zone_wr_size*1.5)
+                    start_lba = start_lba + zone_wr_size*1.5
+                    comm_num++;  
+                    if((start_lba + zone_wr_size*1.5) == zone_end){
+                        
+                       // break;
+
+                    }
+                }
+                else
+                {
+                    res_sector = zone_end - start_lba
+                    if(res_sector > 0){
+                        read_async(start_lba, res_sector, i, i*SECTOR_SIZE*zone_wr_size*1.5)
+                        start_lba = start_lba + res_sector
+                        info('res_sector are fill in : '+i*zone_wr_size*1.5)
+                        comm_num++;
+                    }
+                    break;
+                }
+                    
+            }
+            door_bell()
+            info('qid ='+ q_id +"read in this queue finished :"+ i*1.5*zone_wr_size+'res_sector = '+res_sector )
+            while (comm_num > 0) {
+                
+                ret = retrieve()
+                comm_num -= ret.cnt
+                for(var i = 0; i<ret.cnt;i++)
+                {
+                    if(ret.results[i].status){
+
+                        info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                        testlogs.dump_register()
+                        testlogs.log_error_info(ret.results[i].status)
+                        logs.output_w_buff();
+                        logs.output_r_buff();
+                        return HWError_Code;
+                    }   
+                }
+             
+            } 
+             
+                    
+            //pat.recover(q_start,sec_queue) 
+
+            var r = cmp_rbuff(temp_buff,sec_queue*SECTOR_SIZE)
+            if ( r ) {  
+
+                send_msg =  "Failed sector_no = "+Math.floor(r/SECTOR_SIZE)+'offset = '+r%SECTOR_SIZE 
+                info(send_msg)
+                logs.output_info(send_msg)
+                history_dump(logs_filename);
+                testlogs.dump_register()
+                logs.output_w_buff();
+                logs.output_r_buff();
+                return MisCompare_Code
+            }
+            else
+            {
+                //info('Compare OK\n')
+            } 
+            //info('function finished,start_lba='+start_lba)
+            if(start_lba >= zone_end)
+            {
+
+                break;
+            }
+            
+        }
+      if(start_lba >= zone_end) return TimeOut_Code;   
+    }
+    return Success_Code
+}
+//------------------ 4.Repetitive Sequential ---------------------------
+//从startLBA开始，到EndLBA为止，以blocksize为单位，通过DMA方式写入数据，最后一个小于blocksize的的数据单独写入，
+//其中对每个LBA的写操作的次数随机产生，范围在1-5次之间 
+function Repetitive_Sequential_async(zone_start,zone_end,zone_size,zone_wr_size,zone_loop,q_num,q_depth){
+    var txt ="ASYNC Repetitive_Sequential INPUT PARAMETER :"+"zone_start:"+ zone_start +",\tzone_end:"+ zone_end + ",\tzone_size:" + zone_size + ",\tzone_wr_size:"+zone_wr_size+",\tzone_loop:\t"+zone_loop+'\tq_num:'+q_num+'\tq_depth:'+q_depth
+    info(txt)
+    logs.output_info(txt+'\n')
+    var ret = Sequential_async(zone_start,zone_end,zone_size,zone_wr_size,1,q_num,q_depth)
+    return ret
+}
+//---------------- 5.Repetitive Semi-Sequential ------------------------
+//从startLBA开始，到EndLBA为止，过DMA方式写入数据，地址跨度以2倍blocksize为单位，写入长度为一个blocksize的数据，
+//即写startLBA，startLBA+2blocksize，startLBA+4blocksize……，最后一个小于blocksize的的数据单独写入
+//其中对每个LBA的写操作的次数随机产生，范围在1-5次之间 
+function Repetitive_semiSequential_async(zone_start,zone_end,zone_size,zone_wr_size,zone_loop,q_num,q_depth){
+    
+    var txt = "ASYNC Repetitive_semiSequential INPUT PARAMETER :"+"zone_start:"+ zone_start +",\tzone_end:"+ zone_end + ",\tzone_size:" + zone_size + ",\tzone_wr_size:"+zone_wr_size+",\tzone_loop:\t"+zone_loop+'\tq_num:'+q_num+'\tq_depth:'+q_depth
+    info(txt)
+    logs.output_info(txt+'\n')
+    var ret = semi_Sequential_async(zone_start,zone_end,zone_size,zone_wr_size,1,q_num,q_depth)
+    return ret
+}
+//---------------- 6.Repetitive Overlap Sequential ----------------------
+//从startLBA开始，到EndLBA为止，以blocksize为单位，通过DMA方式写入数据，每次写数据的时候从前一次写数据块的中间开始，
+//即从第二次写操作开始，每次都会覆盖前次写入的一半数据，最后一个小于blocksize的的数据单独写入
+//其中对每个LBA的写操作的次数随机产生，范围在1-5次之间 
+function Repetitive_ovlpSequential_async(zone_start,zone_end,zone_size,zone_wr_size,zone_loop,q_num,q_depth){
+    
+    var txt ="ASYNC Repetitive_OvlpSequential INPUT PARAMETER :"+"zone_start:"+ zone_start +",\tzone_end:"+ zone_end + ",\tzone_size:" + zone_size + ",\tzone_wr_size:"+zone_wr_size+",\tzone_loop:\t"+zone_loop+'\tq_num:'+q_num+'\tq_depth:'+q_depth
+    info(txt)
+    logs.output_info(txt+'\n')
+    var ret = Overlap_Sequential (zone_start,zone_end,zone_size,zone_wr_size,1,q_num,q_depth)
+    return ret 
+}
+//--------------------------- 7.Backward ---------------------------------
+//从EndLBA开始，到startLBA为止，以blocksize为单位，通过DMA方式写入数据，最后一个小于blocksize的的数据单独写入
+function Backward_async(zone_start,zone_end,zone_size,zone_wr_size,zone_loop,q_num,q_depth)
+{
+    var txt = "ASYNC Backward INPUT PARAMETER :"+"zone_start:"+ zone_start +",\tzone_end:"+ zone_end + ",\tzone_size:" + zone_size + ",\tzone_wr_size:"+zone_wr_size+",\tzone_loop:\t"+zone_loop+'\tq_num:'+q_num+'\tq_depth:'+q_depth
+    info(txt)
+    logs.output_info(txt+'\n')
+    if(zone_loop!=0){
+        
+      //  OV_LAP = Math.floor(Math.random()*5+1)  
+        OV_LAP =rand(1,5)
+        info('Random overlapp Mode')
+    }
+    else{
+        OV_LAP = 1  
+    }
+
+    var i
+    var s_offset =  zone_wr_size * SECTOR_SIZE  
+    var block_offset = q_num * q_depth * zone_wr_size //sector
+    var percentage = 0
+    var start_lba
+    var res_sector = 0
+    var sector_cnt = 0
+    var comm_num = 0
+    var MAX_BUFFER_SIZE = 64 * 1024 * 1024
+    last_lba = 0
+    block_start = 0
+    
+    comm_num = 0 
+
+    for (block_start = zone_start-zone_wr_size; block_start > zone_end; block_start -= block_offset) {
+
+        start_lba = block_start 
+
+        for (var q_id = 1;q_id <= q_num ;q_id++) {
+            pat.fill(start_lba,q_depth*zone_wr_size)
+            select(device, 0, q_id)
+            sector_cnt = 0
+            var q_start= start_lba
+            for (i = 0; i != q_depth; i++){
+
+                if(start_lba  >= zone_end) {
+                    
+                    //fs.appendFileSync('error.txt',"w_buff "+ i +"start_lba" + start_lba +"\n"+ w_buff.toString('hex', 0, SEC_NUM*SECTOR_SIZE)+ "\n")
+                    write_async(start_lba, zone_wr_size, i, zone_wr_size*SECTOR_SIZE*i)
+                  
+                    start_lba = start_lba - zone_wr_size    
+                    comm_num++
+                    sector_cnt = sector_cnt + zone_wr_size      
+
+                }
+                else 
+                {
+                    
+                    res_sector =  start_lba-zone_end+zone_wr_size
+                  
+                    if (res_sector>0){
+                       
+                        write_async(zone_end, res_sector, i, zone_wr_size*SECTOR_SIZE*i)
+                       
+                        start_lba = start_lba - zone_wr_size  
+                        comm_num++
+                        sector_cnt = sector_cnt + res_sector  
+                        
+                    }
+                
+                    break
+                }
+            }
+
+            door_bell()
+           
+            //info('write comm sectors = '+ sector_cnt)
+           
+            while (comm_num > 0) {
+             
+                ret = retrieve()
+                comm_num -= ret.cnt
+                for(var i = 0; i<ret.cnt;i++)
+                {
+                    if(ret.results[i].status){
+
+                        info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                        testlogs.dump_register()
+                        testlogs.log_error_info(ret.results[i].status)
+/*                        logs.output_w_buff();
+                        logs.output_r_buff();*/
+                        return HWError_Code;
+                    }   
+                }
+            } 
+
+            start_lba = q_start
+            q_start= start_lba
+            for (i = 0; i != q_depth; i++){
+
+                if(start_lba  >= zone_end) {
+                    
+                    //fs.appendFileSync('error.txt',"w_buff "+ i +"start_lba" + start_lba +"\n"+ w_buff.toString('hex', 0, SEC_NUM*SECTOR_SIZE)+ "\n")
+                    read_async(start_lba, zone_wr_size, i, zone_wr_size*SECTOR_SIZE*i)
+                   
+                    start_lba = start_lba - zone_wr_size    
+                    comm_num++           
+                }
+                else 
+                {
+                    
+                    res_sector =  start_lba-zone_end+zone_wr_size
+                   
+                    if (res_sector>0){
+                 
+                        read_async(zone_end, res_sector, i, zone_wr_size*SECTOR_SIZE*i)
+                       
+                        start_lba = start_lba - res_sector  
+                        comm_num++
+            
+                    }
+               
+                    break
+                }
+
+
+            }
+            door_bell()
+            while (comm_num > 0) {
+         
+                ret = retrieve()
+                comm_num -= ret.cnt
+                for(var i = 0; i<ret.cnt;i++)
+                {
+                    if(ret.results[i].status){
+
+                        info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                        testlogs.dump_register()
+                        testlogs.log_error_info(ret.results[i].status)
+/*                        logs.output_w_buff();
+                        logs.output_r_buff();*/
+                        return HWError_Code;
+                    }   
+                }
+            } 
+            var r = cmp(sector_cnt*SECTOR_SIZE,0,0)
+            if ( r ) { 
+
+                send_msg =  "Failed sector_no = "+Math.floor(r/SECTOR_SIZE)+'offset = '+r%SECTOR_SIZE 
+                info(send_msg)
+                logs.output_info(send_msg+'\n')
+                history_dump(logs_filename);
+                testlogs.dump_register()
+                testlogs.dump_buff(r)
+/*                logs.output_w_buff();
+                logs.output_r_buff();*/
+                return MisCompare_Code
+
+            }else{
+                
+                //info("OK")    
+            }
+            var time_passed = (Date.now() - start) / 1000
+            time_passed = Math.floor(time_passed/3600)+":"+Math.floor((time_passed%3600)/60)+":"+((time_passed%3600)%60).toFixed(2)+" "
+            var time_left = time_spec * 3600 - (Date.now() - start) / 1000
+            if(time_left<0)
+            {
+                time_left = 0
+            }
+            else  
+                time_left = Math.floor(time_left/3600)+":"+Math.floor((time_left%3600)/60)+":"+((time_left%3600)%60).toFixed(2)+" "
+            
+            if ( start_lba <= zone_start- percentage* zone_size /100 ){
+                        
+                
+                if(start_lba < zone_start- zone_size )
+                {
+                    start_lba = zone_start- zone_size
+                }
+                //send_msg ="sec_num:" + zone_wr_size + ",\t"+((zone_start-start_lba)*100/zone_size).toFixed(2)+ "% finished,\t" + time_passed + " sec passed"
+                var temp_percent = (zone_start-start_lba)*100/zone_size
+                if(percentage>=100)
+                {
+
+                    temp_percent = 100
+               //     info("")
+                }
+                send_msg = " slba="+fmt("%010d",start_lba) +",    nblk: " + fmt("%03d",zone_wr_size) +'    '+(temp_percent).toFixed(2)+ "% done,    " + time_passed + " passed    "+ time_left +" left\n"
+                logs.output_info(send_msg+'\n')
+                info( 'msg:' + send_msg  )
+                percentage = percentage + step_percent
+            }
+            if (time_left==0) return TimeOut_Code
+            if(start_lba<=zone_end)break
+        }
+     if(start_lba<=zone_end)break
+
+
+    }
+    return Success_Code
+}
+//------------------------- 8.Semi-Backward ------------------------------
+//从EndLBA开始，到startLBA为止，过DMA方式写入数据，地址跨度以2倍blocksize为单位，写入长度为一个blocksize的数据，
+//即写EndLBA，EndLBA-2blocksize，EndLBA-4blocksize……，最后一个小于blocksize的的数据单独写入
+function semi_Backward_async(zone_start,zone_end,zone_size,zone_wr_size,zone_loop,q_num,q_depth)
+{
+    var txt = "ASYNC semi_Backward INPUT PARAMETER :"+"zone_start:"+ zone_start +",\tzone_end:"+ zone_end + ",\tzone_size:" + zone_size + ",\tzone_wr_size:"+zone_wr_size+",\tzone_loop:\t"+zone_loop+'\tq_num:'+q_num+'\tq_depth:'+q_depth
+    info(txt)
+    logs.output_info(txt+'\n')
+    if(zone_loop!=0){
+        
+       // OV_LAP = Math.floor(Math.random()*5+1)
+        OV_LAP =rand(1,5)  
+        info('Random overlapp Mode')
+    }
+    else{
+        OV_LAP = 1  
+    }
+
+    var i
+    var s_offset =  zone_wr_size * SECTOR_SIZE  
+    var block_offset = q_num * q_depth * zone_wr_size * 2//sector
+    var percentage = 0
+    var start_lba
+    var sector_cnt =0 //sector in a  queque
+    var res_sector = 0
+    var comm_num = 0
+    var MAX_BUFFER_SIZE = 64 * 1024 * 1024
+    last_lba = 0
+    block_start = 0
+    
+    comm_num = 0 
+
+    for (block_start = zone_start-zone_wr_size*2; block_start > zone_end; block_start -= block_offset) {
+
+        start_lba = block_start 
+
+         for (var q_id = 1;q_id <= q_num ;q_id++) {
+            pat.fill(start_lba,q_depth*zone_wr_size)
+            select(device, 0, q_id)
+            sector_cnt = 0
+            var q_start= start_lba
+            for (i = 0; i != q_depth; i++){
+
+                if(start_lba  >= zone_end) {
+                    
+                    //fs.appendFileSync('error.txt',"w_buff "+ i +"start_lba" + start_lba +"\n"+ w_buff.toString('hex', 0, SEC_NUM*SECTOR_SIZE)+ "\n")
+                    write_async(start_lba, zone_wr_size, i, zone_wr_size*SECTOR_SIZE*i)
+                
+                    start_lba = start_lba - zone_wr_size * 2                      
+                    comm_num++ 
+                    sector_cnt = sector_cnt + zone_wr_size
+                    
+                }
+                else 
+                {
+                    
+                    res_sector =  zone_wr_size*2-(zone_end - start_lba)  
+                 
+                    if (res_sector>zone_wr_size){
+                       
+                        write_async(zone_end, res_sector-zone_wr_size, i, zone_wr_size*SECTOR_SIZE*i)
+                       
+                        start_lba = zone_end 
+                        comm_num++
+                        sector_cnt = sector_cnt + res_sector-zone_wr_size
+                    }
+               
+                    break
+                }
+
+            }
+
+            door_bell()
+            
+            //info('write comm sectors = '+ sector_cnt)
+           
+            while (comm_num > 0) {
+              
+                ret = retrieve()
+                comm_num -= ret.cnt
+                for(var i = 0; i<ret.cnt;i++)
+                {
+                    if(ret.results[i].status){
+
+                        info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                        testlogs.dump_register()
+                        testlogs.log_error_info(ret.results[i].status)
+/*                        logs.output_w_buff();
+                        logs.output_r_buff();*/
+                        return HWError_Code;
+                    }   
+                }
+            } 
+
+            start_lba = q_start
+            q_start= start_lba
+            for (i = 0; i != q_depth; i++){
+
+                if(start_lba  >= zone_end) {
+                    
+                    //fs.appendFileSync('error.txt',"w_buff "+ i +"start_lba" + start_lba +"\n"+ w_buff.toString('hex', 0, SEC_NUM*SECTOR_SIZE)+ "\n")
+                    read_async(start_lba, zone_wr_size, i, zone_wr_size*SECTOR_SIZE*i)
+                  
+                    comm_num++
+                    start_lba = start_lba - zone_wr_size*2    
+                               
+                }
+                else 
+                {
+                    
+                    res_sector =  zone_wr_size*2-(zone_end - start_lba)  
+                  
+                    if (res_sector>zone_wr_size){
+                   
+                        read_async(zone_end, res_sector-zone_wr_size, i, zone_wr_size*SECTOR_SIZE*i)
+                       
+                        start_lba = zone_end  
+                        comm_num++
+                        
+                    }
+         
+                    break
+                }
+
+
+            }
+            door_bell()
+            while (comm_num > 0) {
+          
+                ret = retrieve()
+                comm_num -= ret.cnt
+                for(var i = 0; i<ret.cnt;i++)
+                {
+                    if(ret.results[i].status){
+
+                        info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                        testlogs.dump_register()
+                        testlogs.log_error_info(ret.results[i].status)
+ /*                       logs.output_w_buff();
+                        logs.output_r_buff();*/
+                        return HWError_Code;
+                    }   
+                }
+            } 
+            var r = cmp(sector_cnt*SECTOR_SIZE,0,0)
+            if ( r ) {  
+
+                send_msg =  "Failed sector_no = "+Math.floor(r/SECTOR_SIZE)+'offset = '+r%SECTOR_SIZE 
+                info(send_msg)
+                logs.output_info(send_msg+'\n')
+                history_dump(logs_filename);
+                testlogs.dump_register()
+                testlogs.dump_buff(r)
+/*                logs.output_w_buff();
+                logs.output_r_buff();*/
+                return MisCompare_Code
+            }else{
+                
+                //info("OK")    
+            }
+
+            var time_passed = (Date.now() - start) / 1000
+            time_passed = Math.floor(time_passed/3600)+":"+Math.floor((time_passed%3600)/60)+":"+((time_passed%3600)%60).toFixed(2)+" "
+            var time_left = time_spec * 3600 - (Date.now() - start) / 1000
+            if (time_left<0)
+                time_left=0
+            else
+                time_left = Math.floor(time_left/3600)+":"+Math.floor((time_left%3600)/60)+":"+((time_left%3600)%60).toFixed(2)+" "
+            
+
+            
+                    
+            if ( start_lba <= zone_start-percentage * zone_size /100 ){
+                
+/*                if(start_lba < zone_start- zone_size )
+                {
+                    start_lba = zone_start- zone_size
+                }*/
+                var temp_percent = (zone_start-start_lba)*100/zone_size
+                if(percentage==100)
+                    temp_percent=100
+                
+            //    last_lba = last_lba + step_percent
+                //send_msg = "start_lba:"+ start_lba +",\tzone_wr_size:" + zone_wr_size + ",\t"+((zone_start-start_lba)/zone_size *100).toFixed(2)+ "% finished,\t" + (time_passed).toFixed(2) + " sec passed\t" //
+                send_msg = " slba="+fmt("%010d",start_lba) +",    nblk: " + fmt("%03d",zone_wr_size) +'    '+((zone_start-start_lba)*100/zone_size).toFixed(2)+ "% done,    " + time_passed + " passed    "+ time_left +" left\n"
+                info( 'msg:' + send_msg  )
+                logs.output_info(send_msg+'\n')
+                percentage = percentage + step_percent
+                if(percentage>100)
+                {
+                    percentage=100
+              
+                }
+                
+            }
+            if (time_left==0) return TimeOut_Code
+             if(start_lba<=zone_end)break
+        }
+
+        
+         if(start_lba<=zone_end)break
+    }
+    return Success_Code
+}
+//-------------------- 10.Repetitive Backward ----------------------------  
+//从EndLBA开始，到startLBA为止，以blocksize为单位，通过DMA方式写入数据，最后一个小于blocksize的的数据单独写入，
+//其中对每个LBA的写操作的次数随机产生，范围在1-5次之间 
+function Repetitive_Backward_async(zone_start,zone_end,zone_size,zone_wr_size,zone_loop,q_num,q_depth){
+    
+    var ret = Backward_async(zone_start,zone_end,zone_size,zone_wr_size,1,q_num,q_depth)
+    return ret
+}
+
+//------------------ 11.Repetitive Semi-Backward --------------------------- 
+//从EndLBA开始，到startLBA为止，过DMA方式写入数据，地址跨度以2倍blocksize为单位，写入长度为一个blocksize的数据，
+//即写EndLBA，EndLBA-2blocksize，EndLBA-4blocksize……，最后一个小于blocksize的的数据单独写入
+//其中对每个LBA的写操作的次数随机产生，范围在1-5次之间
+function Repetitive_semiBackward_async(zone_start,zone_end,zone_size,zone_wr_size,zone_loop,q_num,q_depth)
+{
+
+    var ret = semi_Backward_async(zone_start,zone_end,zone_size,zone_wr_size,1,q_num,q_depth)
+    return ret
+
+}
+
+//------------------------------- 13.Random -------------------------------
+//地址范围在StartLBA和EndLBA-blocksize之间随机选取
+function Random_async(zone_start,zone_end,zone_size,zone_wr_size,zone_loop,q_num,q_depth)
+{
+    var txt = "ASYNC Random INPUT PARAMETER :"+"zone_start:"+ zone_start +",\tzone_end:"+ zone_end + ",\tzone_size:" + zone_size + ",\tzone_wr_size:"+zone_wr_size+",\tzone_loop:\t"+zone_loop+'\tq_num:'+q_num+'\tq_depth:'+q_depth
+    info(txt)
+     logs.output_info(txt+'\n')
+    
+    if(zone_loop!=0){
+        
+       // OV_LAP = Math.floor(Math.random()*5+1) 
+        OV_LAP =rand(1,5) 
+        info('Random overlapp Mode')
+    }
+    else{
+        OV_LAP = 1  
+    }
+    var write_times = 1
+    for ( var i= 0;i < write_times ;i++){
+
+        var addr = Math.floor(rand(0,(zone_end-zone_start)))+zone_start- zone_wr_size               
+        var ret =Sequential_async(addr,zone_end,zone_end-addr,zone_wr_size,0,q_num,q_depth)
+        if(ret) return ret
+    
+    }
+    return Success_Code
+}
+//-------------------------- 14.Repetitive Random -------------------------
+//地址范围在StartLBA和EndLBA-blocksize之间随机选取，通过DMA方式写入长度为blocksize的数据，随机写入数据的次数默认为10000次，用户可以通过msgbox设置次数
+//其中对每个LBA的写操作的次数随机产生，范围在1-5次之间
+function Repetitive_Random_async(zone_start,zone_end,zone_size,zone_wr_size,zone_loop,q_num,q_depth)
+{
+
+    var ret = Random_async(zone_start,zone_end,zone_size,zone_wr_size,1,q_num,q_depth)
+    return ret
+}
+//------------------- 16.Butterfly(|1 --> -->|<-- <-- 2|) -------------------
+function Butterfly_async(zone_start,zone_end,zone_size,zone_wr_size,zone_loop,q_num,q_depth)
+{
+    var txt = "ASYNC Butterfly INPUT PARAMETER :"+"zone_start:"+ zone_start +",\tzone_end:"+ zone_end + ",\tzone_size:" + zone_size + ",\tzone_wr_size:"+zone_wr_size+",\tzone_loop:\t"+zone_loop+'\tq_num:'+q_num+'\tq_depth:'+q_depth
+    info(txt)
+    logs.output_info(txt+'\n')
+    var mid_addr = Math.floor((zone_start + zone_end) /2)
+    var ret = Sequential_async(zone_start,mid_addr,Math.floor(zone_size/2),zone_wr_size,zone_loop,q_num,q_depth)
+    if (ret )return ret
+    ret = Backward_async  (zone_end,mid_addr,Math.floor(zone_size/2),zone_wr_size,zone_loop,q_num,q_depth)
+    return ret
+}
+//------------------- 17.Butterfly(|<-- <-- 1|2 --> -->|) -------------------
+//第一步从MiddleLBA开始写数据到startLBA，第二步从MiddleLBA开始写数据到EndLBA
+function Butterfly2_async(zone_start,zone_end,zone_size,zone_wr_size,zone_loop,q_num,q_depth){
+    var txt = "Butterfly2 INPUT PARAMETER :"+"zone_start:"+ zone_start +",\tzone_end:"+ zone_end + ",\tzone_size:" + zone_size + ",\tzone_wr_size:"+zone_wr_size+",\tzone_loop:\t"+zone_loop+'\tq_num:'+q_num+'\tq_depth:'+q_depth
+    info(txt)
+    logs.output_info(txt+'\n')
+    var mid_addr = Math.floor((zone_start + zone_end) /2)
+    var ret = Backward_async(mid_addr,zone_start,Math.floor(zone_size/2),zone_wr_size,zone_loop,q_num,q_depth)
+    if (ret )return ret
+    ret = Sequential_async (mid_addr,zone_end,Math.floor(zone_size/2),zone_wr_size,zone_loop,q_num,q_depth)
+    return ret
+}
+
+//------------------- 18.Butterfly(|1->3->...|...<-4<-2|) -----------------
+//从startLBA开始写长度为blocksize的数据，从EndLBA-blocksize开始也写入长度为blocksize的数据，地址依次往到MiddleLBA变化，
+//直到最后一次写入的数据长度小于两个blocksize的大小，小于blocksize的数据分别写入
+function Butterfly3_async(zone_start,zone_end,zone_size,zone_wr_size,zone_loop,q_num,q_depth)
+{
+    var txt = "Butterfly3 INPUT PARAMETER :"+"zone_start:"+ zone_start +",\tzone_end:"+ zone_end + ",\tzone_size:" + zone_size + ",\tzone_wr_size:"+zone_wr_size+",\tzone_loop:\t"+zone_loop+'\tq_num:'+q_num+'\tq_depth:'+q_depth
+    info(txt)
+    logs.output_info(txt+'\n')
+    var start_lba = zone_start
+    var end_lba = zone_end - zone_wr_size
+    var mid_lba = Math.floor((zone_start + zone_end)/2)
+    var comm_num = 0
+    var res_sector = 0
+    var sector_cnt = 0
+    var percentage = 0
+    while(end_lba-start_lba > 0)
+    {
+        for (var q_id = 1;q_id <= q_num ;q_id++) {
+            pat.fill(start_lba,zone_wr_size * q_depth)
+            select(device, 0, q_id)
+            sector_cnt = 0
+            q_start = start_lba
+            q_end   = end_lba
+            for (i = 0; i != Math.floor(q_depth/2); i++){
+
+                if(end_lba-start_lba >= zone_wr_size){
+                    //info('start_lba = '+ start_lba + 'end_lba ' + end_lba)
+                    write_async(start_lba, zone_wr_size, i, zone_wr_size*SECTOR_SIZE*i*2)
+                    start_lba = start_lba + zone_wr_size
+                    write_async(end_lba , zone_wr_size, i, zone_wr_size*SECTOR_SIZE*(i*2+1)) 
+                    end_lba = end_lba -  zone_wr_size  
+                    comm_num = comm_num + 2  
+                    sector_cnt = sector_cnt + zone_wr_size * 2
+
+
+                }
+                else
+                {
+  
+                    res_sector = mid_lba -start_lba
+
+                   // info('now start_lba = '+ start_lba + 'end_lba ' + mid_lba + "res_sector " + res_sector)
+                    if(res_sector>0)
+                    {
+                        write_async(start_lba, res_sector, i, zone_wr_size*SECTOR_SIZE*i*2)
+                        
+                        sector_cnt = sector_cnt + res_sector
+                        comm_num++
+                    }
+                    var w_offset = zone_wr_size*SECTOR_SIZE*i*2
+                     w_offset = w_offset+ res_sector*SECTOR_SIZE
+                     res_sector = end_lba- mid_lba + zone_wr_size
+                    if(res_sector>0)
+                    {
+                       // info('now start_lba = '+ mid_lba + 'end_lba ' + end_lba + "res_sector " + res_sector)
+                        write_async(mid_lba, res_sector, i, w_offset)
+                        
+                        sector_cnt = sector_cnt + res_sector
+                        comm_num++
+                    }
+                    
+
+                    break;
+                }
+
+
+
+            }
+
+            door_bell()
+            
+            //info('sector_cnt write :' + sector_cnt)
+
+            while (comm_num > 0) {
+             
+                ret = retrieve()
+                comm_num -= ret.cnt
+                for(var i = 0; i<ret.cnt;i++)
+                {
+                    if(ret.results[i].status){
+
+                        info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                        testlogs.dump_register()
+                        testlogs.log_error_info(ret.results[i].status)
+/*                        logs.output_w_buff();
+                        logs.output_r_buff();*/
+                        return HWError_Code;
+                    }   
+                }
+            } 
+
+            comm_num = 0 
+            sector_cnt = 0
+            start_lba = q_start
+            end_lba   = q_end  
+
+            for (i = 0; i != Math.floor(q_depth/2); i++){
+
+                if(end_lba-start_lba >= zone_wr_size){
+                    //info('start_lba = '+ start_lba + 'end_lba ' + end_lba)
+                    read_async(start_lba, zone_wr_size, i, zone_wr_size*SECTOR_SIZE*i*2)
+                    start_lba = start_lba + zone_wr_size
+                    read_async(end_lba , zone_wr_size, i, zone_wr_size*SECTOR_SIZE*(i*2+1)) 
+                    end_lba = end_lba -  zone_wr_size  
+                    comm_num = comm_num + 2  
+                    sector_cnt = sector_cnt + zone_wr_size * 2
+
+                }
+                else
+                {
+
+                    
+                    res_sector = mid_lba -start_lba
+                   // info('now start_lba = '+ start_lba + 'end_lba ' + end_lba + "res_sector " + res_sector)
+                    if(res_sector>0)
+                    {
+                        read_async(start_lba, res_sector, i, zone_wr_size*SECTOR_SIZE*i*2)
+                        start_lba = start_lba + res_sector
+                        sector_cnt = sector_cnt + res_sector
+                        comm_num++
+                    }
+                    
+
+                    var r_offset = zone_wr_size*SECTOR_SIZE*i*2
+                    r_offset = r_offset+ res_sector*SECTOR_SIZE
+
+                    res_sector = end_lba- mid_lba + zone_wr_size
+                   // info('now start_lba = '+ start_lba + 'end_lba ' + end_lba + "res_sector " + res_sector)
+                    if(res_sector>0)
+                    {
+                        read_async(mid_lba, res_sector, i, r_offset)
+                        end_lba = end_lba -  res_sector  
+                        sector_cnt = sector_cnt + res_sector
+                        comm_num++
+                    }
+                    
+
+                    break;
+                }
+
+
+
+            }
+
+            door_bell()
+
+            
+
+            while (comm_num > 0) {
+       
+                ret = retrieve()
+                comm_num -= ret.cnt
+                for(var i = 0; i<ret.cnt;i++)
+                {
+                    if(ret.results[i].status){
+
+                        info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                        testlogs.dump_register()
+                        testlogs.log_error_info(ret.results[i].status)
+/*                        logs.output_w_buff();
+                        logs.output_r_buff();*/
+                        return HWError_Code;
+                    }   
+                }
+            }
+            //info('sector_cnt read :' + sector_cnt)
+
+            var r = cmp(sector_cnt*SECTOR_SIZE, 0, 0)
+
+            if ( r ) {    
+                         
+                send_msg =  "Failed sector_no = "+Math.floor(r/SECTOR_SIZE)+'offset = '+r%SECTOR_SIZE 
+                info(send_msg)
+                logs.output_info(send_msg+'\n')
+                history_dump(logs_filename);
+                testlogs.dump_register()
+                testlogs.dump_buff(r)
+/*                logs.output_w_buff();
+                logs.output_r_buff();*/
+                return MisCompare_Code
+
+            }else{
+                
+                //info("OK")    
+            }
+            var time_passed = (Date.now() - start) / 1000
+            time_passed = Math.floor(time_passed/3600)+":"+Math.floor((time_passed%3600)/60)+":"+((time_passed%3600)%60).toFixed(2)+" "
+            var time_left = time_spec * 3600 - (Date.now() - start) / 1000
+            if (time_left<0)
+                time_left=0
+            else
+                time_left = Math.floor(time_left/3600)+":"+Math.floor((time_left%3600)/60)+":"+((time_left%3600)%60).toFixed(2)+" "
+            
+            if (zone_size-(end_lba-start_lba ) >= ( percentage* zone_size /100) ){
+            
+                
+                //send_msg ="sec_num:" + zone_wr_size  +'\t'+((zone_size-end_lba+start_lba )*100/zone_size).toFixed(2)+ "% finished,\t" + time_passed + " sec passed\n"
+                var temp_percent= (zone_size-end_lba+start_lba )*100/zone_size
+                if(temp_percent > 100)temp_percent =100
+                send_msg = " slba="+fmt("%010d",start_lba) +",    nblk: " + fmt("%03d",zone_wr_size) +'    '+(temp_percent).toFixed(2)+ "% done,    " + time_passed + " passed    "+ time_left +" left\n"
+                info( 'msg:' + send_msg  )
+                logs.output_info(send_msg+'\n')
+                percentage = percentage + step_percent
+                if(percentage>100)
+                {
+                    percentage=100
+
+                }
+            }
+            if (time_left==0) return TimeOut_Code
+            if(end_lba-start_lba <= 0) break;
+        }
+    }
+    return Success_Code
+}
+//------------------- 19.Butterfly(|...<-3<-1|2->4->...|) -----------------
+//从MiddleLB开始写长度为blocksize的数据，地址往StartLBA递减，同时从MiddleLB开始写长度为blocksize的数据，地址往EndLBA递增
+//直到最后一次写入的数据长度小于两个blocksize的大小，小于blocksize的数据分别写入
+function Butterfly4_async(zone_start,zone_end,zone_size,zone_wr_size,zone_loop,q_num,q_depth)
+{
+    var txt = "Butterfly4 INPUT PARAMETER :"+"zone_start:"+ zone_start +",\tzone_end:"+ zone_end + ",\tzone_size:" + zone_size + ",\tzone_wr_size:"+zone_wr_size+",\tzone_loop:\t"+zone_loop+'\tq_num:'+q_num+'\tq_depth:'+q_depth
+    info(txt)
+    logs.output_info(txt+'\n')
+    var mid_addr = Math.floor((zone_start + zone_end) /2)
+    var start_lba = mid_addr - zone_wr_size
+    var end_lba = mid_addr
+    var comm_num = 0
+    var res_sector_a = 0
+    var res_sector_b = 0
+    var sector_cnt = 0
+    var percentage = 0
+    while((start_lba>=zone_start)&&(end_lba<zone_end))
+    {
+         for (var q_id = 1;q_id <= q_num ;q_id++) 
+         {
+            pat.fill(start_lba,zone_wr_size * q_depth)
+            select(device, 0, q_id)
+            sector_cnt = 0
+            q_start = start_lba
+            q_end   = end_lba
+            comm_num = 0
+            for (i = 0; i != Math.floor(q_depth/2); i++){
+
+                if((start_lba>=zone_start)&&(end_lba<zone_end)){
+
+                    //info('start_lba = '+ start_lba+'\tend_lba ' + Number(start_lba+8)+"\tw_buff offset " + zone_wr_size*(i*2) + ' \t start_lba = '+ end_lba +'end_lba ' +Number(end_lba+8) +"\tw_buff offset " + zone_wr_size*(i*2+1))
+                    write_async(start_lba, zone_wr_size, i, zone_wr_size*SECTOR_SIZE*i*2)
+                    start_lba = start_lba - zone_wr_size
+                    write_async(end_lba , zone_wr_size, i, zone_wr_size*SECTOR_SIZE*(i*2+1)) 
+                    end_lba = end_lba +  zone_wr_size  
+                    comm_num = comm_num + 2  
+                    sector_cnt = sector_cnt + zone_wr_size * 2
+                }
+                else
+                {
+
+                    res_sector_a = start_lba + zone_wr_size - zone_start
+                    //info('1 now start_lba = '+ zone_start + 'end_lba ' + (Number(start_lba)+8) + "res_sector " + res_sector_a+"\tw_buff offset " + zone_wr_size*(i*2))
+
+                    if(res_sector_a>0){
+
+                        write_async(zone_start, res_sector_a, i, zone_wr_size*SECTOR_SIZE*i*2)
+                       
+                        sector_cnt = sector_cnt + res_sector_a
+                        comm_num++
+                         
+                    }
+
+                    res_sector_b = zone_end  - end_lba 
+                    //info('2 now start_lba = '+ end_lba + 'end_lba ' + zone_end + "res_sector " + res_sector_b+ "\tw_buff offset " +(Number(zone_wr_size*(i*2))+Number(res_sector_a)))
+                    if(res_sector_b>0){
+                        write_async(end_lba, res_sector_b, i, zone_wr_size*SECTOR_SIZE*(i*2)+res_sector_a*SECTOR_SIZE)
+                        
+                        sector_cnt = sector_cnt + res_sector_b
+                        comm_num++
+                        
+                    }
+                    break;
+                }
+            }
+
+            door_bell()
+            
+           
+            //info('sector_cnt write :' + sector_cnt + "\tcomm_num : "+comm_num)
+            while (comm_num > 0) {
+                
+                var ret = retrieve()
+                comm_num -= ret.cnt
+                for(var i = 0; i<ret.cnt;i++)
+                {
+                    if(ret.results[i].status){
+
+                        info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                        testlogs.dump_register()
+                        testlogs.log_error_info(ret.results[i].status)
+/*                        logs.output_w_buff();
+                        logs.output_r_buff();*/
+                        return HWError_Code;
+                    }   
+                }
+    
+            } 
+            
+            
+            comm_num = 0 
+            sector_cnt = 0
+            start_lba = q_start
+            end_lba   = q_end  
+
+            for (i = 0; i != Math.floor(q_depth/2); i++){
+
+                if((start_lba>=zone_start)&&(end_lba<zone_end)){
+
+                    //info('start_lba = '+ start_lba+'\tend_lba ' + Number(start_lba+8)+"\tw_buff offset " + zone_wr_size*(i*2) + ' \t start_lba = '+ end_lba +'end_lba ' +Number(end_lba+8) +"\tw_buff offset " + zone_wr_size*(i*2+1))
+                    read_async(start_lba, zone_wr_size, i, zone_wr_size*SECTOR_SIZE*i*2)
+                    start_lba = start_lba - zone_wr_size
+                    read_async(end_lba , zone_wr_size, i, zone_wr_size*SECTOR_SIZE*(i*2+1)) 
+                    end_lba = end_lba +  zone_wr_size  
+                    comm_num = comm_num + 2  
+                    sector_cnt = sector_cnt + zone_wr_size * 2
+                }
+                else
+                {
+
+                     res_sector_a = start_lba + zone_wr_size - zone_start
+                    if(res_sector_a>0){
+
+                        read_async(zone_start, res_sector_a, i, zone_wr_size*SECTOR_SIZE*i*2)
+                        //info('1 now start_lba = '+ zone_start + '\tend_lba ' + (Number(start_lba)+8) + "res_sector " + res_sector_a+"\tr_buff offset " + zone_wr_size*(i*2))
+                        sector_cnt = sector_cnt + res_sector_a
+                        comm_num = comm_num + 1
+                        start_lba = zone_start
+                         
+                    }
+
+                    res_sector_b = zone_end  - end_lba 
+                    if(res_sector_b>0){
+                        read_async(end_lba, res_sector_b, i, zone_wr_size*SECTOR_SIZE*(i*2)+res_sector_a*SECTOR_SIZE)
+                        //info('2 now start_lba = '+ end_lba + '\tend_lba ' + zone_end + "res_sector " + res_sector_b+"\tr_buff offset " + (Number(zone_wr_size*(i*2))+Number(res_sector_a)))
+                        sector_cnt = sector_cnt + res_sector_b
+                        comm_num = comm_num + 1
+                        end_lba = zone_end
+                       
+                    }
+                    break;
+                }
+            }
+
+            door_bell()
+            
+             //info('sector_cnt read :' + sector_cnt + "\tcomm_num : "+comm_num)
+             while (comm_num > 0) {
+                
+                var ret = retrieve()
+                comm_num -= ret.cnt
+                for(var i = 0; i<ret.cnt;i++)
+                {
+                    if(ret.results[i].status){
+
+                        info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[i].cookie,ret.results[i].result,ret.results[i].status,ret.results[i].costtime))
+                        testlogs.dump_register()
+                        testlogs.log_error_info(ret.results[i].status)
+/*                        logs.output_w_buff();
+                        logs.output_r_buff();*/
+                        return HWError_Code;
+                    }   
+                }
+
+
+            } 
+            
+
+            var r = cmp(sector_cnt*SECTOR_SIZE, 0, 0)
+
+            if ( r ) {                  
+                send_msg =  "Failed sector_no = "+Math.floor(r/SECTOR_SIZE)+'offset = '+r%SECTOR_SIZE 
+                info(send_msg)
+                logs.output_info(send_msg+'\n')
+                history_dump(logs_filename);
+                testlogs.dump_register()
+                testlogs.dump_buff(r)
+/*                logs.output_w_buff();
+                logs.output_r_buff();*/
+                return MisCompare_Code
+            }else{
+                
+                //info("OK")    
+            }
+
+            time_passed = (Date.now() - start) / 1000
+            time_passed = Math.floor(time_passed/3600)+":"+Math.floor((time_passed%3600)/60)+":"+((time_passed%3600)%60).toFixed(2)+" "
+            var time_left = time_spec * 3600 - (Date.now() - start) / 1000
+            if (time_left<0)
+                time_left=0
+            else
+                time_left = Math.floor(time_left/3600)+":"+Math.floor((time_left%3600)/60)+":"+((time_left%3600)%60).toFixed(2)+" "
+           
+            
+            if ( (end_lba-start_lba ) >= ( percentage* zone_size /100) ){
+            
+           
+            //send_msg ="sec_num:" + zone_wr_size  +'\t'+((end_lba-start_lba )*100/zone_size).toFixed(2)+ "% finished,\t" + time_passed + " sec passed\n"
+            send_msg = " slba="+fmt("%010d",start_lba) +",    nblk: " + fmt("%03d",zone_wr_size) +'    '+((end_lba-start_lba )*100/zone_size).toFixed(2)+ "% done,    " + time_passed + " passed    "+ time_left +" left\n"
+            info( 'msg:' + send_msg  )
+            logs.output_info(send_msg+'\n')
+
+            percentage = percentage + step_percent
+                if(percentage>100)
+                {
+                    percentage=100
+
+                }
+
+            }
+            if (time_left==0) return TimeOut_Code
+            if((start_lba<zone_start)||(end_lba>=zone_end)){
+                //info('break out ')
+                break;
+            }
+
+
+        }
+
+    }
+
+    return Success_Code
+}
+function set_timespec(timelimit)
+{
+    time_spec = timelimit;
+
+}
+
+function selectMethod(zone,methd,q_num,q_depth){  
+    
+    testlogs.log_config_para(zone,methd,q_num,q_depth);
+    var ret = 0;
+    var buff;
+    switch(methd){
+        
+        case 1 :
+            //info('ASYNC Sequential method apply in this zone')
+            //logs.output_info('ASYNC Sequential method apply in this zone\n')
+            ret = Sequential_async(zone.offset,zone.offset + zone.size ,zone.size,zone.writesize,0,q_num,q_depth)
+
+            break   
+        case 2:
+            //info('ASYNC semi_Sequential method apply in this zone')
+            //logs.output_info('ASYNC semi_Sequential method apply in this zone\n')
+            ret = semi_Sequential_async(zone.offset,zone.offset + zone.size ,zone.size,zone.writesize,0,q_num,q_depth)
+            break       
+/*        case 3:
+            //info('ASYNC Overlap_Sequential method apply in this zone')
+           // Overlap_Sequential_async(zone.offset,zone.offset + zone.size ,zone.size,zone.writesize,0)
+            //logs.output_info('ASYNC Overlap_Sequential method apply in this zone\n')
+            break*/
+            
+/*        case 4:
+            info('ASYNC Repetitive_Sequential method apply in this zone')
+            logs.output_info('ASYNC Repetitive_Sequential method apply in this zone\n')
+            Repetitive_Sequential_async(zone.offset,zone.offset + zone.size ,zone.size,zone.writesize,0,q_num,q_depth)
+            break*/
+/*        case 5:
+            info('ASYNC Repetitive_semiSequential method apply in this zone')
+            logs.output_info('ASYNC Repetitive_semiSequential method apply in this zone\n')
+            Repetitive_semiSequential_async(zone.offset,zone.offset + zone.size ,zone.size,zone.writesize,0,q_num,q_depth)
+            break*/
+       /* case 6:
+            //info('ASYNC Repetitive_ovlpSequential method apply in this zone')
+            //logs.output_info('ASYNC Repetitive_ovlpSequential method apply in this zone\n')
+            //Repetitive_ovlpSequential_async(zone.offset,zone.offset + zone.size ,zone.size,zone.writesize,0)
+            break */  
+        
+        case 3:
+            //info('ASYNC Backward method apply in this zone')
+            //logs.output_info('ASYNC Backward method apply in this zone\n')
+            ret = Backward_async(zone.offset + zone.size,zone.offset ,zone.size,zone.writesize,0,q_num,q_depth)
+            break
+        case 4 :
+            //info('ASYNC semi_Backward method apply in this zone')
+            //logs.output_info('ASYNC semi_Backward method apply in this zone\n')
+            ret = semi_Backward_async(zone.offset + zone.size,zone.offset ,zone.size,zone.writesize,0,q_num,q_depth)
+            break
+            
+/*        case 9:
+            //info('ASYNC Overlap_Backward method apply in this zone')
+            //logs.output_info('ASYNC Overlap_Backward method apply in this zone\n')
+            //Overlap_Backward_async(zone.offset + zone.size,zone.offset ,zone.size,zone.writesize,0)
+            break
+            
+        case 10:
+            info('ASYNC Repetitive_Backward method apply in this zone')
+            logs.output_info('ASYNC Repetitive_Backward method apply in this zone\n')
+            Backward_async(zone.offset + zone.size ,zone.offset,zone.size,zone.writesize,1,q_num,q_depth)
+            break
+        case 11:
+            info('ASYNC Repetitive_semi_Backward method apply in this zone')
+            logs.output_info('ASYNC Repetitive_semi_Backward method apply in this zone\n')
+            semi_Backward_async(zone.offset + zone.size ,zone.offset,zone.size,zone.writesize,1,q_num,q_depth)
+            break
+        case 12:
+            //info('ASYNC Repetitive_Overlap_Backward method apply in this zone')
+            //logs.output_info('ASYNC Repetitive_Overlap_Backward method apply in this zone\n')
+            //Overlap_Backward_async(zone.offset + zone.size ,zone.offset,zone.size,zone.writesize,1,q_num,q_depth)
+            break*/
+        
+        case 5:
+            //info('ASYNC Random method apply in this zone')
+            //logs.output_info('ASYNC Random method apply in this zone\n')
+            ret = Random_async(zone.offset,zone.offset + zone.size ,zone.size,zone.writesize,0,q_num,q_depth)
+            break   
+ /*       case 14:
+            info('ASYNC Repetitive_Random method apply in this zone')
+            logs.output_info('ASYNC Repetitive_Random method apply in this zone\n')
+            Repetitive_Random_async(zone.offset + zone.size,zone.offset ,zone.size,zone.writesize,0,q_num,q_depth)
+           break*/
+/*         case 15:
+
+            //info('ASYNC Overlap_Random method apply in this zone')
+            //logs.output_info('ASYNC Overlap_Random method apply in this zone\n')
+            //Overlap_Random_async(zone.offset,zone.offset + zone.size ,zone.size,zone.writesize,0)
+            break*/
+        
+        case 6:
+            //info('ASYNC Butterfly method apply in this zone')
+            //logs.output_info('ASYNC Butterfly method apply in this zone\n')
+            ret = Butterfly_async(zone.offset,zone.offset + zone.size ,zone.size,zone.writesize,0,q_num,q_depth)
+            break
+        case 7:
+            //info('ASYNC Butterfly2 method apply in this zone')
+            //logs.output_info('ASYNC Butterfly2 method apply in this zone\n')
+            ret = Butterfly2_async(zone.offset,zone.offset + zone.size ,zone.size,zone.writesize,0,q_num,q_depth)
+            break
+        case 8:
+            //info('ASYNC Butterfly3 method apply in this zone')
+            //logs.output_info('ASYNC Butterfly3 method apply in this zone\n')
+            ret = Butterfly3_async(zone.offset,zone.offset + zone.size ,zone.size,zone.writesize,0,q_num,q_depth)
+            break   
+        case 9:
+            //info('ASYNC Butterfly4 method apply in this zone')
+            //logs.output_info('ASYNC Butterfly4 method apply in this zone\n')
+            ret = Butterfly4_async(zone.offset ,zone.offset+ zone.size ,zone.size,zone.writesize,0,q_num,q_depth)
+            break       
+    }
+    //testlogs.log_end_info(start,ret);
+    buff = sprintf("method :%d finished!, ret : %d \n",methd,ret)
+   // info('method :%d finished! ret :%d\n',methd,ret)
+    info(buff)
+    return ret
+}
+exports.Sequential_async = Sequential_async
+exports.semi_Sequential_async = semi_Sequential_async
+exports.Overlap_Sequential_async = Overlap_Sequential_async
+
+exports.Repetitive_Sequential_async = Repetitive_Sequential_async 
+exports.Repetitive_semiSequential_async = Repetitive_semiSequential_async
+exports.Repetitive_ovlpSequential_async = Repetitive_ovlpSequential_async
+
+exports.Backward_async = Backward_async
+exports.semi_Backward_async = semi_Backward_async
+exports.Repetitive_Backward_async = Repetitive_Backward_async
+exports.Repetitive_semiBackward_async = Repetitive_semiBackward_async
+
+exports.Random_async = Random_async
+exports.Repetitive_Random_async = Repetitive_Random_async
+
+exports.semi_Backward_async = semi_Backward_async
+exports.Butterfly_async  = Butterfly_async
+exports.Butterfly2_async = Butterfly2_async
+exports.Butterfly3_async = Butterfly3_async
+exports.Butterfly4_async = Butterfly4_async
+// exports.Repetitive_Backward=Repetitive_Backward
+// exports.Repetitive_semiBackward = Repetitive_semiBackward
+exports.selectMethod = selectMethod
+exports.set_timespec = set_timespec

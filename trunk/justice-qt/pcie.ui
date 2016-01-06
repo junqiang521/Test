@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PCIE</class>
+ <widget class="QDialog" name="PCIE">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1004</width>
+    <height>770</height>
+   </rect>
+  </property>
+  <property name="font">
+   <font>
+    <pointsize>10</pointsize>
+    <weight>50</weight>
+    <bold>false</bold>
+   </font>
+  </property>
+  <property name="windowTitle">
+   <string>Dialog</string>
+  </property>
+  <property name="layoutDirection">
+   <enum>Qt::LeftToRight</enum>
+  </property>
+  <widget class="QLineEdit" name="lineEdit">
+   <property name="geometry">
+    <rect>
+     <x>770</x>
+     <y>728</y>
+     <width>201</width>
+     <height>27</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QLineEdit" name="lineEdit_2">
+   <property name="geometry">
+    <rect>
+     <x>96</x>
+     <y>505</y>
+     <width>101</width>
+     <height>27</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label_6">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>510</y>
+     <width>75</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Script path : </string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="Stop1">
+   <property name="geometry">
+    <rect>
+     <x>62</x>
+     <y>30</y>
+     <width>50</width>
+     <height>25</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <pointsize>10</pointsize>
+    </font>
+   </property>
+   <property name="text">
+    <string>Stop</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="pushButton_21">
+   <property name="geometry">
+    <rect>
+     <x>165</x>
+     <y>30</y>
+     <width>50</width>
+     <height>25</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <pointsize>10</pointsize>
+    </font>
+   </property>
+   <property name="text">
+    <string>WBUF</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="pushButton_22">
+   <property name="geometry">
+    <rect>
+     <x>216</x>
+     <y>30</y>
+     <width>50</width>
+     <height>25</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <pointsize>10</pointsize>
+    </font>
+   </property>
+   <property name="text">
+    <string>RBUF</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="pushButton_28">
+   <property name="geometry">
+    <rect>
+     <x>114</x>
+     <y>30</y>
+     <width>50</width>
+     <height>25</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <pointsize>10</pointsize>
+    </font>
+   </property>
+   <property name="text">
+    <string>View</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="CDM_input_label">
+   <property name="geometry">
+    <rect>
+     <x>695</x>
+     <y>733</y>
+     <width>71</width>
+     <height>20</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>CMD input : </string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="Run1">
+   <property name="geometry">
+    <rect>
+     <x>12</x>
+     <y>30</y>
+     <width>50</width>
+     <height>25</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Run</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label_13">
+   <property name="geometry">
+    <rect>
+     <x>16</x>
+     <y>720</y>
+     <width>311</width>
+     <height>26</height>
+    </rect>
+   </property>
+   <property name="cursor">
+    <cursorShape>IBeamCursor</cursorShape>
+   </property>
+   <property name="text">
+    <string>Elapsed : </string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="name_label">
+   <property name="geometry">
+    <rect>
+     <x>350</x>
+     <y>724</y>
+     <width>281</width>
+     <height>17</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Script name : </string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="Clear">
+   <property name="geometry">
+    <rect>
+     <x>266</x>
+     <y>30</y>
+     <width>50</width>
+     <height>25</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Clear</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="Idfy0_Button">
+   <property name="geometry">
+    <rect>
+     <x>317</x>
+     <y>30</y>
+     <width>50</width>
+     <height>25</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>IDFY0</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="Idfy1_Button">
+   <property name="geometry">
+    <rect>
+     <x>367</x>
+     <y>30</y>
+     <width>50</width>
+     <height>25</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>IDFY1</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="PCI_Button">
+   <property name="geometry">
+    <rect>
+     <x>417</x>
+     <y>30</y>
+     <width>55</width>
+     <height>25</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>PCIReg</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="CTRL_Button">
+   <property name="geometry">
+    <rect>
+     <x>472</x>
+     <y>30</y>
+     <width>55</width>
+     <height>25</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>CtrlReg</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="Histoty_button">
+   <property name="geometry">
+    <rect>
+     <x>527</x>
+     <y>30</y>
+     <width>50</width>
+     <height>25</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Trace</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="Command_button">
+   <property name="geometry">
+    <rect>
+     <x>578</x>
+     <y>30</y>
+     <width>50</width>
+     <height>25</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>CMD</string>
+   </property>
+  </widget>
+  <zorder>pushButton_21</zorder>
+  <zorder>Run1</zorder>
+  <zorder>lineEdit</zorder>
+  <zorder>lineEdit_2</zorder>
+  <zorder>label_6</zorder>
+  <zorder>Stop1</zorder>
+  <zorder>pushButton_22</zorder>
+  <zorder>pushButton_28</zorder>
+  <zorder>CDM_input_label</zorder>
+  <zorder>label_13</zorder>
+  <zorder>name_label</zorder>
+  <zorder>Clear</zorder>
+  <zorder>Idfy0_Button</zorder>
+  <zorder>Idfy1_Button</zorder>
+  <zorder>PCI_Button</zorder>
+  <zorder>CTRL_Button</zorder>
+  <zorder>Histoty_button</zorder>
+  <zorder>Command_button</zorder>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

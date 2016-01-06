@@ -1,0 +1,217 @@
+require('../../justice-cmd/command/nvme-cmd.js')
+var log = require('fs');
+var os = require('os')
+var pat = require('../core_lib/c_pattern.jclib')
+var logs =  require('../output/output.js');
+var fmt = require('printf')
+var sleep = require('sleep')
+var shell = require('shelljs')
+var testlogs = require('../core_lib/c_logs.jclib')
+var iniat = require('../init/init.js')
+var moment = require("moment");
+var sprintf = require("sprintf-js").sprintf
+var w_buff = get_write_buffer()
+var r_buff = get_read_buffer()
+
+iniat.init('',0)
+var device_no = 0
+var total_lba=iniat.total_lba
+info("total_lba: "+total_lba)
+var mdts=iniat.mdts
+var blk= Math.pow(2, mdts+12)
+var SECTOR_SIZE = iniat.sector_size
+var BLK_NUM=256
+if(BLK_NUM>blk/SECTOR_SIZE){
+    BLK_NUM=blk/SECTOR_SIZE
+}
+var wr_size=BLK_NUM
+var start_lba = 0
+var slba=0
+var str=""
+var str1=""
+var str2=""
+var buffer = new Buffer(4096)
+get_features_async (7, buffer, 4096, 0)
+door_bell()
+var comm_num=1
+ while (comm_num > 0) {
+            ret = retrieve()
+            comm_num -= ret.cnt
+
+}
+str=fmt('0x%08x',ret.results[0].result)
+str1=(str&0xffff)+1
+str2=((str>>16)&0xffff)+1
+string="Submission Queues: "+str1+"\n"
+string=string+"Completion Queues: "+str2+"\n"
+var Q_NUM=8
+if(Q_NUM>str1){
+    info("Q_NUM is not support")
+    Q_NUM=str1
+}
+var temp1 =fmt('0x%02x',reg_read(0))
+var q_size = (temp1&0xffff)+1
+string=string+"Queue size: "+q_size+"\n"
+var Q_DEPTH=512
+if(Q_DEPTH>q_size){
+    Q_DEPTH=q_size
+} 
+var start_lba = 0
+var slba=0
+
+var random_seed= Number(Date.now())
+seed(random_seed)
+var file_name='';
+var file_na=""
+var cur_dir = process.argv[1]
+
+var urlChunks = cur_dir.split('/');
+for(var i = 0 ;i < urlChunks.length - 2;i++ )
+{
+
+  file_na = file_na +  urlChunks[i] +'/';
+}
+file_name=file_na+"info/"
+
+
+var n = urlChunks.length
+var testname = urlChunks[n-1]
+var test = testname.split('.')
+var testid = test[0]
+var time =moment().format("YYYY-MM-DD")+"-"+ moment().format("HH:mm:ss")
+var sysid=os.hostname()
+var pid = process.pid
+var file=file_name+testid+"_"+time+"_"+sysid+"_"+pid+"jfocus"
+var logs_filename = file_na + 'info/error.log';
+testlogs.set_log_path(file)
+pat.pat_init()
+function powercycle(){
+    power_off("/home/justice/pcie_pa -p /dev/sdb off")
+    cls()
+
+    var p_on=power_on("/home/justice/pcie_pa -p /dev/sdb on")
+
+    if(p_on[0]==0)
+        info("pci device is ok")
+    else
+        info("the pci device is not ok")
+    if(p_on[1]==0)
+        info("nvme disk is ok")
+    else
+        info("nvme disk is not ok")
+    scan()
+}
+
+var cookie=0
+var timelimit=1000  //s
+var start = Date.now()
+var array=new Array()
+var time_passed=0
+
+timeout:
+while(time_passed<timelimit){
+
+    for(var q_id =1;q_id<=Q_NUM;q_id++){
+
+        var flush_pos = rand(Q_DEPTH-100, Q_DEPTH-30)
+        //console.log(flush_pos)
+        var comm_num=0
+        slba=start_lba
+        pat.fill(start_lba,wr_size*Q_DEPTH)
+        var sector_cnt = 0
+        select(device_no, 0, q_id)
+        for(var q_depth = 0;q_depth<Q_DEPTH;q_depth++){
+
+            if(q_depth==Q_DEPTH-flush_pos){
+                flush_async(q_id, q_depth)
+
+            }
+            else
+            {
+                
+                if(q_depth<(Q_DEPTH-flush_pos)){
+                    write_async(start_lba,wr_size,q_depth,wr_size*SECTOR_SIZE*q_depth)
+                    start_lba=start_lba+wr_size
+                    sector_cnt=sector_cnt+wr_size
+                }
+                else{
+                    write_async(start_lba,wr_size,q_depth,wr_size*SECTOR_SIZE*(q_depth-1))
+                    start_lba=start_lba+wr_size
+                    sector_cnt=sector_cnt+wr_size
+                }
+                    
+            }
+
+            comm_num++
+        }
+
+        door_bell()
+        
+        while (comm_num > 0) {
+            
+
+            ret = retrieve()
+            comm_num -= ret.cnt
+            
+            for(var j = 0; j<ret.cnt;j++)
+            {
+
+                array.push(ret.results[j].cookie)
+
+                if(ret.results[j].status){
+
+                    info(sprintf('Error Found! cookie: %010d, result: %d, status: %d, costtime: %04d',ret.results[j].cookie,ret.results[j].result,ret.results[j].status,ret.results[j].costtime))
+                }   
+            }
+        }
+        var temp=0
+        for(var m=0; m<array.length; m++){
+            if(array[m]==(Q_DEPTH-flush_pos)){
+                temp=m
+            }
+
+        }
+
+        powercycle()
+
+        start_lba=slba
+        sector_cnt=0
+        
+        for(var q_depth = 0;q_depth<temp;q_depth++){
+            var num=1
+
+            start_lba=slba+array.shift()*wr_size
+
+            read_async(start_lba,wr_size,q_depth,0)
+            door_bell()
+            while (num > 0) {
+                ret = retrieve()
+                num -= ret.cnt
+            }
+
+            var r =cmp(wr_size*SECTOR_SIZE, 0, SECTOR_SIZE*(start_lba-slba))
+
+            if ( r ) { 
+            
+                var send_msg =  "MisCompare  Failed sector_no = "+Math.floor(r/SECTOR_SIZE)+'offset = '+r%SECTOR_SIZE+"\n" 
+                info(send_msg)
+                log.appendFileSync(file,send_msg)
+                var error_no =Math.floor(r/SECTOR_SIZE)
+                history_dump(logs_filename);
+                testlogs.dump_register()
+                testlogs.dump_buff(r)
+                logs.output_offset(w_buff,error_no,1,2)
+                logs.output_offset(r_buff,error_no,1,2)
+        
+            }
+            time_passed=(Date.now()-start)/1000
+            if(time_passed>=timelimit)
+                break timeout;
+        }
+        array.splice(0,array.length)
+
+       
+    }
+
+}
+info('====================powercycle  finished!=======================')

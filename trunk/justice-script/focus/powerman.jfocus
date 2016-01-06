@@ -1,0 +1,285 @@
+require('../../justice-cmd/command/nvme-cmd.js')
+var fmt = require('printf')
+var pat = require('../core_lib/c_pattern.jclib')
+scan()
+select(0,0,0)
+
+var buffer = new Buffer(4096)
+var buf = new Buffer(4096)
+buffer.fill(0)
+buf.fill(0)
+info('====================set power state  0=======================\n')
+set_features_async (2, buffer, 4096, 0, 0)
+door_bell(0)
+var num = 1
+var ret
+while (num > 0){
+    ret = retrieve() 
+    num -= ret.cnt
+}
+if(ret.results[0].status){
+    info(sprintf(' cookie: %010d, result: %d, Status Code Type : %d, Status Code: 0x%02x',ret.results[0].cookie,ret.results[0].result,(ret.results[0].status&0x700)>>8,ret.results[0].status&0xff))
+}
+info('====================set power state  3 =======================\n')
+set_features_async (2, buffer, 4096, 3, 0)
+door_bell(0)
+var num = 1
+var ret
+while (num > 0){
+    ret = retrieve() 
+    num -= ret.cnt
+}
+if(ret.results[0].status){
+    info(sprintf(' cookie: %010d, result: %d, Status Code Type : %d, Status Code: 0x%02x',ret.results[0].cookie,ret.results[0].result,(ret.results[0].status&0x700)>>8,ret.results[0].status&0xff))
+}
+info('====================send read command =======================\n')
+select(0,0,1)
+var start = process.hrtime()
+read_async(10, 256, 1, 0)
+door_bell(1)
+num = 1
+while (num > 0){
+
+    ret1 = retrieve() 
+    num -= ret1.cnt
+}
+var diff = process.hrtime(start)
+
+var nanosecond = 1000000
+var total_time = diff[0] + diff[1]/nanosecond
+
+console.log("response time is "+total_time+"ms")
+info('====================set power state  0 =======================\n')
+select(0,0,0)
+set_features_async (2, buffer, 4096, 0, 0)
+door_bell(0)
+var num = 1
+var ret
+while (num > 0){
+    ret = retrieve() 
+    num -= ret.cnt
+}
+if(ret.results[0].status){
+    info(sprintf(' cookie: %010d, result: %d, Status Code Type : %d, Status Code: 0x%02x',ret.results[0].cookie,ret.results[0].result,(ret.results[0].status&0x700)>>8,ret.results[0].status&0xff))
+}
+info('====================set power state  4 =======================\n')
+set_features_async (2, buffer, 4096, 4, 0)
+door_bell(0)
+var num = 1
+var ret
+while (num > 0){
+    ret = retrieve() 
+    num -= ret.cnt
+}
+if(ret.results[0].status){
+    info(sprintf(' cookie: %010d, result: %d, Status Code Type : %d, Status Code: 0x%02x',ret.results[0].cookie,ret.results[0].result,(ret.results[0].status&0x700)>>8,ret.results[0].status&0xff))
+}
+info('====================send read command =======================\n')
+select(0,0,1)
+var start = process.hrtime()
+read_async(10, 256, 1, 0)
+door_bell(1)
+num = 1
+while (num > 0){
+
+    ret1 = retrieve() 
+    num -= ret1.cnt
+}
+var diff = process.hrtime(start)
+var nanosecond = 1000000
+var total_time = diff[0] + diff[1]/nanosecond
+console.log("response time is "+total_time+"ms")
+
+info('====================disable Autonomous power state =======================\n')
+set_features_async (0x0c, buffer, 0, 0, 3)
+door_bell(0)
+var num = 1
+var ret
+while (num > 0){
+    ret = retrieve() 
+    num -= ret.cnt
+}
+if(ret.results[0].status)
+{
+    console.log("set autonomous power state fail\n")
+    info(sprintf(' cookie: %010d, result: %d, Status Code Type : %d, Status Code: 0x%02x',ret.results[0].cookie,ret.results[0].result,(ret.results[0].status&0x700)>>8,ret.results[0].status&0xff))
+
+}
+info('====================set power state  1 =======================\n')
+set_features_async (2, buffer, 4096, 1, 0)
+door_bell(0)
+var num = 1
+var ret
+while (num > 0){
+    ret = retrieve() 
+    num -= ret.cnt
+}
+if(ret.results[0].status){
+    info(sprintf(' cookie: %010d, result: %d, Status Code Type : %d, Status Code: 0x%02x',ret.results[0].cookie,ret.results[0].result,(ret.results[0].status&0x700)>>8,ret.results[0].status&0xff))
+}
+info('====================set power state to 3 =======================\n')
+set_features_async (2, buffer, 4096, 3, 0)
+door_bell(0)
+var num = 1
+var ret
+while (num > 0){
+    ret = retrieve() 
+    num -= ret.cnt
+}
+if(ret.results[0].status){
+    info(sprintf(' cookie: %010d, result: %d, Status Code Type : %d, Status Code: 0x%02x',ret.results[0].cookie,ret.results[0].result,(ret.results[0].status&0x700)>>8,ret.results[0].status&0xff))
+}
+info('====================send read command =======================\n')
+select(0,0,1)
+read_async(10, 256, 1, 0)
+door_bell(1)
+num = 1
+while (num > 0){
+
+    ret1 = retrieve() 
+    num -= ret1.cnt
+}
+info('====================get power state  =======================\n')
+select(0,0,0)
+get_features_async(2, buf, 4096, 0)
+door_bell(0)
+num = 1
+while (num > 0){
+    ret = retrieve() 
+    num -= ret.cnt
+}
+if(ret.results[0].status){
+    info(sprintf(' cookie: %010d, result: %d, Status Code Type : %d, Status Code: 0x%02x',ret.results[0].cookie,ret.results[0].result,(ret.results[0].status&0x700)>>8,ret.results[0].status&0xff))
+
+}
+var ps = ret.results[0].result
+console.log("Power state is "+ps)
+info('====================set power state  2 =======================\n')
+set_features_async (2, buffer, 4096, 2, 0)
+door_bell(0)
+var num = 1
+var ret
+while (num > 0){
+    ret = retrieve() 
+    num -= ret.cnt
+}
+if(ret.results[0].status){
+    info(sprintf(' cookie: %010d, result: %d, Status Code Type : %d, Status Code: 0x%02x',ret.results[0].cookie,ret.results[0].result,(ret.results[0].status&0x700)>>8,ret.results[0].status&0xff))
+}
+info('====================set power state to 4 =======================\n')
+set_features_async (2, buffer, 4096, 4, 0)
+door_bell(0)
+var num = 1
+var ret
+while (num > 0){
+    ret = retrieve() 
+    num -= ret.cnt
+}
+if(ret.results[0].status){
+    info(sprintf(' cookie: %010d, result: %d, Status Code Type : %d, Status Code: 0x%02x',ret.results[0].cookie,ret.results[0].result,(ret.results[0].status&0x700)>>8,ret.results[0].status&0xff))
+}
+info('====================send read command =======================\n')
+select(0,0,1)
+read_async(10, 256, 1, 0)
+door_bell(1)
+num = 1
+while (num > 0){
+
+    ret1 = retrieve() 
+    num -= ret1.cnt
+}
+info('====================get power state  =======================\n')
+select(0,0,0)
+get_features_async(2, buf, 4096, 0)
+door_bell(0)
+num = 1
+while (num > 0){
+    ret = retrieve() 
+    num -= ret.cnt
+}
+if(ret.results[0].status){
+    info(sprintf(' cookie: %010d, result: %d, Status Code Type : %d, Status Code: 0x%02x',ret.results[0].cookie,ret.results[0].result,(ret.results[0].status&0x700)>>8,ret.results[0].status&0xff))
+
+}
+var ps = ret.results[0].result
+console.log("Power state is "+ps)
+
+info('====================test data =======================')
+for(var psid=0;psid<5;psid++){
+    set_features_async (2, buffer, 4096, psid, 0)
+    door_bell(0)
+    var num = 1
+    var ret
+    while (num > 0){
+        ret = retrieve() 
+        num -= ret.cnt
+    }
+    if(ret.results[0].status){
+        info(sprintf(' cookie: %010d, result: %d, Status Code Type : %d, Status Code: 0x%02x',ret.results[0].cookie,ret.results[0].result,(ret.results[0].status&0x700)>>8,ret.results[0].status&0xff))
+    }
+    get_features_async(2, buf, 4096, 0)
+    door_bell(0)
+    num = 1
+    while (num > 0){
+        ret = retrieve() 
+        num -= ret.cnt
+    }
+    if(ret.results[0].status){
+        info(sprintf(' cookie: %010d, result: %d, Status Code Type : %d, Status Code: 0x%02x',ret.results[0].cookie,ret.results[0].result,(ret.results[0].status&0x700)>>8,ret.results[0].status&0xff))
+
+    }
+    var ps = ret.results[0].result
+    console.log("Power state is "+ps)
+    pat.pat_init()
+    var q_num=rand(1,8)
+    var num=0
+    var BLK_NUM=8
+    var SECTOR_SIZE = 512
+    var slba=0
+    var cookie=0
+    start_lba=slba
+    select(0,0,q_num)       
+    for(var depth=0;depth<150;depth++){
+        write_async(slba, BLK_NUM, cookie++, BLK_NUM*depth*SECTOR_SIZE)
+        num++
+        slba=slba+BLK_NUM
+    }       
+    door_bell() 
+    var ret1        
+    while (num > 0)
+    {
+        ret1 = retrieve() 
+        num -= ret1.cnt
+    }       
+
+    slba=start_lba
+    select(0,0,q_num)       
+    for(var depth=0;depth<150;depth++){
+        read_async(slba, BLK_NUM, cookie++, BLK_NUM*depth*SECTOR_SIZE)
+        num++
+        slba=slba+BLK_NUM
+    }       
+    door_bell() 
+    var ret1        
+    while (num > 0)
+    {
+        ret1 = retrieve() 
+        num -= ret1.cnt
+    }       
+    var r = cmp(150*8*SECTOR_SIZE, 0, 0)
+    if ( r ) { 
+        
+        var send_msg =  "MisCompare  Failed sector_no = "+Math.floor(r/SECTOR_SIZE)+'offset = '+r%SECTOR_SIZE+"\n" 
+        info(send_msg)
+        
+    }else{
+        
+        info(" No miscompare")    
+    }
+}
+
+
+info('====================power state test  finished!=======================')
+
+
+
