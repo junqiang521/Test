@@ -18,11 +18,30 @@ static const struct modversion_info ____versions[]
 __used
 __attribute__((section("__versions"))) = {
 	{ 0x51d22b2b, __VMLINUX_SYMBOL_STR(module_layout) },
+	{ 0x966f779f, __VMLINUX_SYMBOL_STR(pci_unregister_driver) },
 	{ 0x6bc3fbc0, __VMLINUX_SYMBOL_STR(__unregister_chrdev) },
 	{ 0x8f6a9295, __VMLINUX_SYMBOL_STR(class_destroy) },
+	{ 0xa179109b, __VMLINUX_SYMBOL_STR(device_del) },
 	{ 0x6783e368, __VMLINUX_SYMBOL_STR(__pci_register_driver) },
+	{ 0xafcd4b04, __VMLINUX_SYMBOL_STR(device_create) },
 	{ 0x1c0826a, __VMLINUX_SYMBOL_STR(__class_create) },
 	{ 0x733da50, __VMLINUX_SYMBOL_STR(__register_chrdev) },
+	{ 0x1cce8c94, __VMLINUX_SYMBOL_STR(pci_enable_device) },
+	{ 0xccf089b8, __VMLINUX_SYMBOL_STR(pci_enable_msix) },
+	{ 0x1689b963, __VMLINUX_SYMBOL_STR(dma_supported) },
+	{ 0x7c61340c, __VMLINUX_SYMBOL_STR(__release_region) },
+	{ 0xedc03953, __VMLINUX_SYMBOL_STR(iounmap) },
+	{ 0xa974fd6f, __VMLINUX_SYMBOL_STR(dma_set_mask) },
+	{ 0x70ba65d4, __VMLINUX_SYMBOL_STR(pci_set_master) },
+	{ 0x42c8de35, __VMLINUX_SYMBOL_STR(ioremap_nocache) },
+	{ 0x1fedf0f4, __VMLINUX_SYMBOL_STR(__request_region) },
+	{ 0x69a358a6, __VMLINUX_SYMBOL_STR(iomem_resource) },
+	{ 0xd9406cd3, __VMLINUX_SYMBOL_STR(pci_select_bars) },
+	{ 0xd8c2203b, __VMLINUX_SYMBOL_STR(pci_bus_read_config_dword) },
+	{ 0x37a0cba, __VMLINUX_SYMBOL_STR(kfree) },
+	{ 0x4f6b400b, __VMLINUX_SYMBOL_STR(_copy_from_user) },
+	{ 0x71b953bf, __VMLINUX_SYMBOL_STR(kmem_cache_alloc_trace) },
+	{ 0x59b2ef9d, __VMLINUX_SYMBOL_STR(kmalloc_caches) },
 	{ 0x27e1a049, __VMLINUX_SYMBOL_STR(printk) },
 	{ 0xbdfb6dbb, __VMLINUX_SYMBOL_STR(__fentry__) },
 };
@@ -34,4 +53,4 @@ __attribute__((section(".modinfo"))) =
 
 MODULE_ALIAS("pci:v*d*sv*sd*bc01sc08i02*");
 
-MODULE_INFO(srcversion, "87FB7F961AF6CAF42767E62");
+MODULE_INFO(srcversion, "D722924678B6A0BDBB3FDA6");
